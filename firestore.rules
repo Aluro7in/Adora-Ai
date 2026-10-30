@@ -1,0 +1,225 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // 1. Default-deny safety net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Helper functions
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() > 0 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    // User entity validation
+    function isValidUser(data) {
+      return data.keys().hasAll(['id', 'email']) &&
+             data.id is string && data.id.size() <= 128 &&
+             data.email is string && data.email.size() <= 256;
+    }
+
+    // Reflection entity validation
+    function isValidReflection(data) {
+      return data.keys().hasAll(['id', 'userId', 'rawText', 'sourceType', 'category', 'analysisState']) &&
+             data.id is string && data.id.size() <= 128 &&
+             data.userId == request.auth.uid &&
+             data.rawText is string && data.rawText.size() > 0 && data.rawText.size() <= 10000 &&
+             data.sourceType in ['text', 'voice_transcript', 'multimodal_note'] &&
+             data.category in ['personal', 'professional', 'strategic', 'creative', 'wellbeing'] &&
+             data.analysisState in ['pending', 'analyzed', 'failed'];
+    }
+
+    // Memory entity validation
+    function isValidMemory(data) {
+      return data.keys().hasAll(['id', 'userId', 'type', 'title', 'statement', 'userApprovalState']) &&
+             data.id is string && data.id.size() <= 128 &&
+             data.userId == request.auth.uid &&
+             data.type in ['episodic', 'semantic', 'relational', 'procedural'] &&
+             data.title is string && data.title.size() >= 3 && data.title.size() <= 120 &&
+             data.statement is string && data.statement.size() >= 5 && data.statement.size() <= 2000 &&
+             data.userApprovalState in ['candidate', 'approved', 'rejected', 'archived'];
+    }
+
+    // Insight entity validation
+    function isValidInsight(data) {
+      return data.keys().hasAll(['id', 'userId', 'title', 'hypothesis', 'status']) &&
+             data.id is string && data.id.size() <= 128 &&
+             data.userId == request.auth.uid &&
+             data.title is string && data.title.size() >= 3 && data.title.size() <= 150 &&
+             data.hypothesis is string && data.hypothesis.size() >= 5 && data.hypothesis.size() <= 1500 &&
+             data.status in ['candidate', 'confirmed', 'dismissed', 'refined'];
+    }
+
+    // Workflow entity validation
+    function isValidWorkflow(data) {
+      return data.keys().hasAll(['id', 'userId', 'goal', 'status']) &&
+             data.id is string && data.id.size() <= 128 &&
+             data.userId == request.auth.uid &&
+             data.goal is string && data.goal.size() >= 5 && data.goal.size() <= 500 &&
+             data.status in ['draft', 'planned', 'in_progress', 'completed', 'failed', 'cancelled'];
+    }
+
+    // Task entity validation
+    function isValidTask(data) {
+      return data.keys().hasAll(['id', 'userId', 'workflowId', 'title', 'consequentialityTier', 'status']) &&
+             data.id is string && data.id.size() <= 128 &&
+             data.userId == request.auth.uid &&
+             data.workflowId is string && data.workflowId.size() <= 128 &&
+             data.title is string && data.title.size() >= 3 && data.title.size() <= 150 &&
+             data.consequentialityTier in [0, 1, 2] &&
+             data.status in ['PLANNED', 'AWAITING_APPROVAL', 'APPROVED', 'RUNNING', 'EXECUTED', 'VERIFIED', 'FAILED', 'CANCELLED', 'UNVERIFIED'];
+    }
+
+    // Execution Receipt validation (Tamper-evident ledger)
+    function isValidReceipt(data) {
+      return data.keys().hasAll(['id', 'userId', 'taskId', 'toolName', 'inputPayloadHash', 'outputPayloadHash', 'verificationStatus']) &&
+             data.id is string && data.id.size() <= 128 &&
+             data.userId == request.auth.uid &&
+             data.taskId is string && data.taskId.size() <= 128 &&
+             data.toolName is string && data.toolName.size() <= 100 &&
+             data.inputPayloadHash is string && data.inputPayloadHash.size() <= 64 &&
+             data.outputPayloadHash is string && data.outputPayloadHash.size() <= 64 &&
+             data.verificationStatus in ['VERIFIED', 'FAILED', 'UNVERIFIED'];
+    }
+
+    // Grove Graph Node validation
+    function isValidGraphNode(data) {
+      return data.keys().hasAll(['id', 'userId', 'type', 'label', 'approvalState']) &&
+             data.id is string && data.id.size() <= 128 &&
+             data.userId == request.auth.uid &&
+             data.type in ['reflection', 'event', 'theme', 'goal', 'decision', 'task', 'outcome', 'fact'] &&
+             data.label is string && data.label.size() <= 100 &&
+             data.approvalState in ['candidate', 'confirmed'];
+    }
+
+    // Grove Graph Edge validation
+    function isValidGraphEdge(data) {
+      return data.keys().hasAll(['id', 'userId', 'sourceNodeId', 'targetNodeId', 'relationType', 'approvalState']) &&
+             data.id is string && data.id.size() <= 128 &&
+             data.userId == request.auth.uid &&
+             data.sourceNodeId is string && data.sourceNodeId.size() <= 128 &&
+             data.targetNodeId is string && data.targetNodeId.size() <= 128 &&
+             data.relationType in ['causes', 'relates_to', 'resolves', 'hinders', 'reinforces', 'derived_from'] &&
+             data.approvalState in ['candidate', 'confirmed'];
+    }
+
+    // User document path
+    match /users/{userId} {
+      allow get: if isOwner(userId);
+      allow list: if false; // Blanket user listing forbidden
+      allow create: if isOwner(userId) && isValidUser(incoming());
+      allow update: if isOwner(userId) && isValidUser(incoming()) && incoming().id == existing().id;
+      allow delete: if isOwner(userId);
+
+      // Reflections subcollection
+      match /reflections/{reflectionId} {
+        allow get: if isOwner(userId) && isValidId(reflectionId);
+        allow list: if isOwner(userId);
+        allow create: if isOwner(userId) && isValidId(reflectionId) && isValidReflection(incoming());
+        allow update: if isOwner(userId) && isValidId(reflectionId) && isValidReflection(incoming()) &&
+                         incoming().userId == existing().userId &&
+                         incoming().id == existing().id &&
+                         incoming().diff(existing()).affectedKeys().hasOnly(['rawText', 'title', 'category', 'moodRating', 'energyRating', 'tags', 'analysisState', 'updatedAt']);
+        allow delete: if isOwner(userId) && isValidId(reflectionId);
+      }
+
+      // Memories subcollection
+      match /memories/{memoryId} {
+        allow get: if isOwner(userId) && isValidId(memoryId);
+        allow list: if isOwner(userId);
+        allow create: if isOwner(userId) && isValidId(memoryId) && isValidMemory(incoming());
+        allow update: if isOwner(userId) && isValidId(memoryId) && isValidMemory(incoming()) &&
+                         incoming().userId == existing().userId &&
+                         incoming().id == existing().id &&
+                         incoming().diff(existing()).affectedKeys().hasOnly(['title', 'statement', 'detailedContext', 'userApprovalState', 'tags', 'confidenceScore', 'lastReinforcedAt', 'updatedAt']);
+        allow delete: if isOwner(userId) && isValidId(memoryId);
+      }
+
+      // Insights subcollection
+      match /insights/{insightId} {
+        allow get: if isOwner(userId) && isValidId(insightId);
+        allow list: if isOwner(userId);
+        allow create: if isOwner(userId) && isValidId(insightId) && isValidInsight(incoming());
+        allow update: if isOwner(userId) && isValidId(insightId) && isValidInsight(incoming()) &&
+                         incoming().userId == existing().userId &&
+                         incoming().id == existing().id &&
+                         incoming().diff(existing()).affectedKeys().hasOnly(['title', 'hypothesis', 'description', 'status', 'userNotes', 'confidenceScore', 'supportingEvidence', 'counterEvidence', 'updatedAt']);
+        allow delete: if isOwner(userId) && isValidId(insightId);
+      }
+
+      // Workflows / Agent plans
+      match /agent_plans/{planId} {
+        allow get: if isOwner(userId) && isValidId(planId);
+        allow list: if isOwner(userId);
+        allow create: if isOwner(userId) && isValidId(planId) && isValidWorkflow(incoming());
+        allow update: if isOwner(userId) && isValidId(planId) && isValidWorkflow(incoming()) &&
+                         incoming().userId == existing().userId &&
+                         incoming().id == existing().id &&
+                         incoming().diff(existing()).affectedKeys().hasOnly(['goal', 'rationale', 'status', 'taskIds', 'updatedAt']);
+        allow delete: if isOwner(userId) && isValidId(planId);
+      }
+
+      // Tasks
+      match /tasks/{taskId} {
+        allow get: if isOwner(userId) && isValidId(taskId);
+        allow list: if isOwner(userId);
+        allow create: if isOwner(userId) && isValidId(taskId) && isValidTask(incoming());
+        allow update: if isOwner(userId) && isValidId(taskId) && isValidTask(incoming()) &&
+                         incoming().userId == existing().userId &&
+                         incoming().id == existing().id &&
+                         incoming().workflowId == existing().workflowId &&
+                         incoming().diff(existing()).affectedKeys().hasOnly(['title', 'description', 'status', 'approvedAt', 'executedAt', 'verifiedAt', 'executionResult', 'verificationProof', 'errorMessage', 'updatedAt']);
+        allow delete: if isOwner(userId) && isValidId(taskId);
+      }
+
+      // Execution History (Tamper-evident Receipts: Append-only, never mutate or delete)
+      match /execution_history/{receiptId} {
+        allow get: if isOwner(userId) && isValidId(receiptId);
+        allow list: if isOwner(userId);
+        allow create: if isOwner(userId) && isValidId(receiptId) && isValidReceipt(incoming());
+        allow update: if false; // Strict ledger immutability
+        allow delete: if false; // Strict ledger audit trail preservation
+      }
+
+      // Reflection Grove Graph Nodes
+      match /graph_nodes/{nodeId} {
+        allow get: if isOwner(userId) && isValidId(nodeId);
+        allow list: if isOwner(userId);
+        allow create: if isOwner(userId) && isValidId(nodeId) && isValidGraphNode(incoming());
+        allow update: if isOwner(userId) && isValidId(nodeId) && isValidGraphNode(incoming()) &&
+                         incoming().userId == existing().userId &&
+                         incoming().id == existing().id;
+        allow delete: if isOwner(userId) && isValidId(nodeId);
+      }
+
+      // Reflection Grove Graph Edges
+      match /graph_edges/{edgeId} {
+        allow get: if isOwner(userId) && isValidId(edgeId);
+        allow list: if isOwner(userId);
+        allow create: if isOwner(userId) && isValidId(edgeId) && isValidGraphEdge(incoming());
+        allow update: if isOwner(userId) && isValidId(edgeId) && isValidGraphEdge(incoming()) &&
+                         incoming().userId == existing().userId &&
+                         incoming().id == existing().id;
+        allow delete: if isOwner(userId) && isValidId(edgeId);
+      }
+    }
+  }
+}

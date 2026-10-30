@@ -1,0 +1,500 @@
+{
+  "entities": {
+    "User": {
+      "title": "User Profile",
+      "description": "User profile with configuration settings and statistics",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique user ID matching auth UID",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "email": {
+          "type": "string",
+          "description": "User email address",
+          "maxLength": 256
+        },
+        "displayName": {
+          "type": "string",
+          "description": "Display name of user",
+          "maxLength": 100
+        },
+        "photoUrl": {
+          "type": "string",
+          "description": "Profile avatar URL",
+          "maxLength": 500
+        },
+        "theme": {
+          "type": "string",
+          "description": "Preferred UI theme",
+          "enum": ["dark", "light", "system"]
+        },
+        "highThinkingDefault": {
+          "type": "boolean",
+          "description": "Default deep deliberation toggle"
+        },
+        "voiceFeedbackEnabled": {
+          "type": "boolean",
+          "description": "Voice playback feedback toggle"
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "ISO timestamp of creation"
+        },
+        "updatedAt": {
+          "type": "string",
+          "description": "ISO timestamp of last update"
+        }
+      },
+      "required": ["id", "email", "createdAt", "updatedAt"]
+    },
+    "Reflection": {
+      "title": "Reflection",
+      "description": "Raw journal reflection or transcribed audio note",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for reflection",
+          "pattern": "^[a-zA-Z0-9_\\-]+$",
+          "maxLength": 128
+        },
+        "userId": {
+          "type": "string",
+          "description": "Owner user UID",
+          "maxLength": 128
+        },
+        "title": {
+          "type": "string",
+          "description": "Optional title or inferred heading",
+          "maxLength": 200
+        },
+        "rawText": {
+          "type": "string",
+          "description": "Verbatim transcript or user entered text",
+          "minLength": 1,
+          "maxLength": 10000
+        },
+        "sourceType": {
+          "type": "string",
+          "description": "Sensory origin of reflection",
+          "enum": ["text", "voice_transcript", "multimodal_note"]
+        },
+        "category": {
+          "type": "string",
+          "description": "Reflection topic category",
+          "enum": ["personal", "professional", "strategic", "creative", "wellbeing"]
+        },
+        "moodRating": {
+          "type": "number",
+          "description": "Self-reported emotional rating from 1 to 5"
+        },
+        "energyRating": {
+          "type": "number",
+          "description": "Self-reported physiological energy score from 1 to 5"
+        },
+        "analysisState": {
+          "type": "string",
+          "description": "Status of Nemotron extraction pipeline",
+          "enum": ["pending", "analyzed", "failed"]
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "ISO timestamp of creation"
+        },
+        "updatedAt": {
+          "type": "string",
+          "description": "ISO timestamp of last update"
+        }
+      },
+      "required": ["id", "userId", "rawText", "sourceType", "category", "analysisState", "createdAt", "updatedAt"]
+    },
+    "Memory": {
+      "title": "Memory",
+      "description": "Atomic cognitive unit in the 4-tier memory vault",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique memory identifier",
+          "pattern": "^[a-zA-Z0-9_\\-]+$",
+          "maxLength": 128
+        },
+        "userId": {
+          "type": "string",
+          "description": "Owner user UID",
+          "maxLength": 128
+        },
+        "type": {
+          "type": "string",
+          "description": "Cognitive memory category",
+          "enum": ["episodic", "semantic", "relational", "procedural"]
+        },
+        "title": {
+          "type": "string",
+          "description": "Short memory title",
+          "minLength": 3,
+          "maxLength": 120
+        },
+        "statement": {
+          "type": "string",
+          "description": "Distilled atomic statement",
+          "minLength": 5,
+          "maxLength": 2000
+        },
+        "detailedContext": {
+          "type": "string",
+          "description": "Extended background or rationale",
+          "maxLength": 5000
+        },
+        "userApprovalState": {
+          "type": "string",
+          "description": "Governance review state",
+          "enum": ["candidate", "approved", "rejected", "archived"]
+        },
+        "confidenceScore": {
+          "type": "number",
+          "description": "Model confidence score between 0.0 and 1.0"
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Creation timestamp"
+        },
+        "updatedAt": {
+          "type": "string",
+          "description": "Update timestamp"
+        }
+      },
+      "required": ["id", "userId", "type", "title", "statement", "userApprovalState", "createdAt", "updatedAt"]
+    },
+    "Insight": {
+      "title": "Insight",
+      "description": "Synthesized recurring behavioral or strategic pattern",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique insight ID",
+          "pattern": "^[a-zA-Z0-9_\\-]+$",
+          "maxLength": 128
+        },
+        "userId": {
+          "type": "string",
+          "description": "Owner user UID",
+          "maxLength": 128
+        },
+        "title": {
+          "type": "string",
+          "description": "Pattern title",
+          "minLength": 3,
+          "maxLength": 150
+        },
+        "hypothesis": {
+          "type": "string",
+          "description": "Evidence-backed non-clinical hypothesis statement",
+          "minLength": 5,
+          "maxLength": 1500
+        },
+        "description": {
+          "type": "string",
+          "description": "Detailed explanation of dynamics",
+          "maxLength": 3000
+        },
+        "confidenceScore": {
+          "type": "number",
+          "description": "Confidence score from 0.0 to 1.0"
+        },
+        "status": {
+          "type": "string",
+          "description": "Governance state",
+          "enum": ["candidate", "confirmed", "dismissed", "refined"]
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Creation timestamp"
+        },
+        "updatedAt": {
+          "type": "string",
+          "description": "Update timestamp"
+        }
+      },
+      "required": ["id", "userId", "title", "hypothesis", "status", "createdAt", "updatedAt"]
+    },
+    "Workflow": {
+      "title": "Agent Plan Workflow",
+      "description": "High-level goal decomposed into an actionable task sequence",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique workflow ID",
+          "pattern": "^[a-zA-Z0-9_\\-]+$",
+          "maxLength": 128
+        },
+        "userId": {
+          "type": "string",
+          "description": "Owner user UID",
+          "maxLength": 128
+        },
+        "goal": {
+          "type": "string",
+          "description": "Natural language goal",
+          "minLength": 5,
+          "maxLength": 500
+        },
+        "rationale": {
+          "type": "string",
+          "description": "Strategic rationale behind task sequence",
+          "maxLength": 2000
+        },
+        "status": {
+          "type": "string",
+          "description": "Overall workflow execution state",
+          "enum": ["draft", "planned", "in_progress", "completed", "failed", "cancelled"]
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Creation timestamp"
+        },
+        "updatedAt": {
+          "type": "string",
+          "description": "Update timestamp"
+        }
+      },
+      "required": ["id", "userId", "goal", "status", "createdAt", "updatedAt"]
+    },
+    "Task": {
+      "title": "Workflow Task",
+      "description": "Individual step or MCP tool action in a workflow",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique task ID",
+          "pattern": "^[a-zA-Z0-9_\\-]+$",
+          "maxLength": 128
+        },
+        "userId": {
+          "type": "string",
+          "description": "Owner user UID",
+          "maxLength": 128
+        },
+        "workflowId": {
+          "type": "string",
+          "description": "Parent workflow plan ID",
+          "maxLength": 128
+        },
+        "title": {
+          "type": "string",
+          "description": "Actionable task title",
+          "minLength": 3,
+          "maxLength": 150
+        },
+        "description": {
+          "type": "string",
+          "description": "Detailed execution instructions",
+          "maxLength": 1000
+        },
+        "toolName": {
+          "type": "string",
+          "description": "Target tool or MCP action",
+          "maxLength": 100
+        },
+        "consequentialityTier": {
+          "type": "number",
+          "description": "Tier 0: read-only, Tier 1: low impact, Tier 2: consequential requiring approval"
+        },
+        "status": {
+          "type": "string",
+          "description": "State machine step",
+          "enum": ["PLANNED", "AWAITING_APPROVAL", "APPROVED", "RUNNING", "EXECUTED", "VERIFIED", "FAILED", "CANCELLED", "UNVERIFIED"]
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Creation timestamp"
+        },
+        "updatedAt": {
+          "type": "string",
+          "description": "Update timestamp"
+        }
+      },
+      "required": ["id", "userId", "workflowId", "title", "consequentialityTier", "status", "createdAt", "updatedAt"]
+    },
+    "ExecutionReceipt": {
+      "title": "Execution Receipt",
+      "description": "Cryptographically verifiable ledger entry with postcondition verification",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Receipt ID",
+          "pattern": "^[a-zA-Z0-9_\\-]+$",
+          "maxLength": 128
+        },
+        "userId": {
+          "type": "string",
+          "description": "Owner user UID",
+          "maxLength": 128
+        },
+        "taskId": {
+          "type": "string",
+          "description": "Associated task ID",
+          "maxLength": 128
+        },
+        "workflowId": {
+          "type": "string",
+          "description": "Associated workflow ID",
+          "maxLength": 128
+        },
+        "toolName": {
+          "type": "string",
+          "description": "Name of executed tool",
+          "maxLength": 100
+        },
+        "inputPayloadHash": {
+          "type": "string",
+          "description": "SHA-256 hash of inputs",
+          "maxLength": 64
+        },
+        "outputPayloadHash": {
+          "type": "string",
+          "description": "SHA-256 hash of outputs",
+          "maxLength": 64
+        },
+        "verificationStatus": {
+          "type": "string",
+          "description": "Outcome of independent state verification",
+          "enum": ["VERIFIED", "FAILED", "UNVERIFIED"]
+        },
+        "timestamp": {
+          "type": "string",
+          "description": "Receipt issuance timestamp"
+        }
+      },
+      "required": ["id", "userId", "taskId", "toolName", "inputPayloadHash", "outputPayloadHash", "verificationStatus", "timestamp"]
+    },
+    "GraphNode": {
+      "title": "Grove Knowledge Graph Node",
+      "description": "Graph node representing an entity in Reflection Grove",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Node identifier",
+          "maxLength": 128
+        },
+        "userId": {
+          "type": "string",
+          "description": "Owner user UID",
+          "maxLength": 128
+        },
+        "type": {
+          "type": "string",
+          "description": "Entity category",
+          "enum": ["reflection", "event", "theme", "goal", "decision", "task", "outcome", "fact"]
+        },
+        "label": {
+          "type": "string",
+          "description": "Graph display label",
+          "maxLength": 100
+        },
+        "approvalState": {
+          "type": "string",
+          "description": "Candidate vs confirmed node",
+          "enum": ["candidate", "confirmed"]
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Creation timestamp"
+        }
+      },
+      "required": ["id", "userId", "type", "label", "approvalState", "createdAt"]
+    },
+    "GraphEdge": {
+      "title": "Grove Knowledge Graph Edge",
+      "description": "Relational link connecting two entities in Reflection Grove",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Edge identifier",
+          "maxLength": 128
+        },
+        "userId": {
+          "type": "string",
+          "description": "Owner user UID",
+          "maxLength": 128
+        },
+        "sourceNodeId": {
+          "type": "string",
+          "description": "Source node identifier",
+          "maxLength": 128
+        },
+        "targetNodeId": {
+          "type": "string",
+          "description": "Target node identifier",
+          "maxLength": 128
+        },
+        "relationType": {
+          "type": "string",
+          "description": "Semantic relation type",
+          "enum": ["causes", "relates_to", "resolves", "hinders", "reinforces", "derived_from"]
+        },
+        "confidence": {
+          "type": "number",
+          "description": "Confidence from 0.0 to 1.0"
+        },
+        "approvalState": {
+          "type": "string",
+          "description": "Candidate vs confirmed edge",
+          "enum": ["candidate", "confirmed"]
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Creation timestamp"
+        }
+      },
+      "required": ["id", "userId", "sourceNodeId", "targetNodeId", "relationType", "approvalState", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "User profile, configuration preferences, and stats"
+    },
+    "/users/{userId}/reflections/{reflectionId}": {
+      "schema": "Reflection",
+      "description": "Source reflections, raw journal inputs, and candidate extractions"
+    },
+    "/users/{userId}/memories/{memoryId}": {
+      "schema": "Memory",
+      "description": "4-tier cognitive memory vault items (episodic, semantic, relational, procedural)"
+    },
+    "/users/{userId}/insights/{insightId}": {
+      "schema": "Insight",
+      "description": "Synthesized recurring behavioral or strategic patterns"
+    },
+    "/users/{userId}/agent_plans/{planId}": {
+      "schema": "Workflow",
+      "description": "High-level goal decomposition and DAG workflows"
+    },
+    "/users/{userId}/tasks/{taskId}": {
+      "schema": "Task",
+      "description": "Actionable workflow steps and execution state"
+    },
+    "/users/{userId}/execution_history/{receiptId}": {
+      "schema": "ExecutionReceipt",
+      "description": "Cryptographic execution proofs and postcondition verification receipts"
+    },
+    "/users/{userId}/graph_nodes/{nodeId}": {
+      "schema": "GraphNode",
+      "description": "Reflection Grove visual graph nodes"
+    },
+    "/users/{userId}/graph_edges/{edgeId}": {
+      "schema": "GraphEdge",
+      "description": "Reflection Grove visual graph relational links"
+    }
+  }
+}

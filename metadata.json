@@ -1,0 +1,11 @@
+{
+  "name": "Adora AI",
+  "description": "Reflective Intelligence. Adaptive Action. Adora AI is a reflective intelligence and agentic execution platform.",
+  "requestFramePermissions": [
+    "microphone"
+  ],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
+
