@@ -1,1 +1,215 @@
 @import "tailwindcss";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* Root Theme Settings */
+:root {
+  color-scheme: light;
+  --theme-transition: background-color 0.2s ease, border-color 0.2s ease, color 0.15s ease;
+}
+
+:root.dark {
+  color-scheme: dark;
+}
+
+body {
+  transition: var(--theme-transition);
+}
+
+/* ========================================================= */
+/* LIGHT MODE STYLING OVERRIDES (html:not(.dark))            */
+/* Converts dark-first stone scale to warm executive light   */
+/* ========================================================= */
+
+html:not(.dark) {
+  background-color: #fafaf9;
+  color: #1c1917;
+}
+
+html:not(.dark) body {
+  background-color: #fafaf9;
+  color: #1c1917;
+}
+
+/* Canvas & App Shell Backgrounds */
+html:not(.dark) .min-h-screen {
+  background-color: #fafaf9 !important;
+  color: #1c1917 !important;
+}
+
+html:not(.dark) .bg-stone-950,
+html:not(.dark) .bg-stone-950\/90,
+html:not(.dark) .bg-stone-950\/95,
+html:not(.dark) .bg-stone-950\/70,
+html:not(.dark) .bg-stone-950\/80 {
+  background-color: #fafaf9 !important;
+  color: #1c1917 !important;
+}
+
+/* Surface Cards, Panels & Modals */
+html:not(.dark) .bg-stone-900,
+html:not(.dark) .bg-stone-900\/90,
+html:not(.dark) .bg-stone-900\/80,
+html:not(.dark) .bg-stone-900\/60,
+html:not(.dark) .bg-stone-900\/40 {
+  background-color: #ffffff !important;
+  color: #1c1917 !important;
+}
+
+html:not(.dark) .bg-stone-800,
+html:not(.dark) .bg-stone-800\/80,
+html:not(.dark) .bg-stone-800\/60,
+html:not(.dark) .bg-stone-800\/40 {
+  background-color: #f5f5f4 !important;
+  color: #292524 !important;
+}
+
+/* Subtle Borders */
+html:not(.dark) .border-stone-800,
+html:not(.dark) .border-stone-800\/80,
+html:not(.dark) .border-stone-800\/60,
+html:not(.dark) .border-stone-700,
+html:not(.dark) .border-stone-700\/60 {
+  border-color: #e7e5e4 !important;
+}
+
+/* High-Contrast Typography */
+html:not(.dark) .text-stone-100,
+html:not(.dark) .text-stone-200 {
+  color: #1c1917 !important;
+}
+
+html:not(.dark) .text-stone-300,
+html:not(.dark) .text-stone-400 {
+  color: #44403c !important;
+}
+
+html:not(.dark) .text-stone-500 {
+  color: #78716c !important;
+}
+
+/* Form Inputs, Textareas, and Select Fields */
+html:not(.dark) input,
+html:not(.dark) textarea,
+html:not(.dark) select {
+  background-color: #ffffff !important;
+  color: #1c1917 !important;
+  border-color: #d6d3d1 !important;
+}
+
+html:not(.dark) input:focus,
+html:not(.dark) textarea:focus,
+html:not(.dark) select:focus {
+  background-color: #ffffff !important;
+  border-color: #d97706 !important;
+}
+
+html:not(.dark) input::placeholder,
+html:not(.dark) textarea::placeholder {
+  color: #a8a29e !important;
+}
+
+/* Navigation Shell (Header & Sidebar) */
+html:not(.dark) header {
+  background-color: rgba(255, 255, 255, 0.85) !important;
+  border-color: #e7e5e4 !important;
+}
+
+html:not(.dark) aside {
+  background-color: #ffffff !important;
+  border-color: #e7e5e4 !important;
+}
+
+/* Nav Link Hover & Active States */
+html:not(.dark) nav button:hover {
+  background-color: #f5f5f4 !important;
+  color: #1c1917 !important;
+}
+
+html:not(.dark) nav button .text-stone-400 {
+  color: #57534e !important;
+}
+
+/* Secondary & Outline Buttons */
+html:not(.dark) button.bg-stone-800,
+html:not(.dark) button.bg-stone-800\/80 {
+  background-color: #f5f5f4 !important;
+  color: #292524 !important;
+  border-color: #d6d3d1 !important;
+}
+
+html:not(.dark) button.bg-stone-800:hover {
+  background-color: #e7e5e4 !important;
+  color: #1c1917 !important;
+}
+
+html:not(.dark) button.hover\:bg-stone-900:hover {
+  background-color: #f5f5f4 !important;
+}
+
+/* Modal Backdrops & Dialog Containers */
+html:not(.dark) .fixed.bg-black\/80 {
+  background-color: rgba(15, 23, 42, 0.5) !important;
+}
+
+html:not(.dark) .bg-stone-900.border.border-stone-800.rounded-2xl {
+  background-color: #ffffff !important;
+  border-color: #e7e5e4 !important;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1) !important;
+}
+
+/* Light Mode Card Shadows */
+html:not(.dark) .shadow-black\/40,
+html:not(.dark) .shadow-sm {
+  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.05), 0 1px 2px -1px rgba(0, 0, 0, 0.05) !important;
+}
+
+/* Badges & Pills */
+html:not(.dark) .bg-stone-800.text-stone-300 {
+  background-color: #f5f5f4 !important;
+  color: #44403c !important;
+  border-color: #e7e5e4 !important;
+}
+
+html:not(.dark) .bg-amber-950\/40,
+html:not(.dark) .bg-amber-950\/50,
+html:not(.dark) .bg-amber-950\/30 {
+  background-color: #fef3c7 !important;
+  color: #92400e !important;
+  border-color: #fde68a !important;
+}
+
+html:not(.dark) .bg-emerald-950\/40,
+html:not(.dark) .bg-emerald-950\/50 {
+  background-color: #d1fae5 !important;
+  color: #065f46 !important;
+  border-color: #a7f3d0 !important;
+}
+
+html:not(.dark) .bg-rose-950\/40,
+html:not(.dark) .bg-rose-950\/50,
+html:not(.dark) .bg-rose-950\/10 {
+  background-color: #ffe4e6 !important;
+  color: #9f1239 !important;
+  border-color: #fecdd3 !important;
+}
+
+html:not(.dark) .bg-sky-950\/40,
+html:not(.dark) .bg-sky-950\/50 {
+  background-color: #e0f2fe !important;
+  color: #075985 !important;
+  border-color: #bae6fd !important;
+}
+
+html:not(.dark) .bg-purple-950\/40,
+html:not(.dark) .bg-purple-950\/50 {
+  background-color: #f3e8ff !important;
+  color: #6b21a8 !important;
+  border-color: #e9d5ff !important;
+}
+
+html:not(.dark) .bg-cyan-950\/50 {
+  background-color: #cffafe !important;
+  color: #155e75 !important;
+  border-color: #a5f3fc !important;
+}

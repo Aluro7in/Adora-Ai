@@ -24,7 +24,17 @@ import { Mic, MicOff, Loader2, Sparkles, AlertCircle } from 'lucide-react';
 
 export default function App() {
   const [currentModule, setCurrentModule] = useState<NavModule>('home');
-  const [isDarkTheme, setIsDarkTheme] = useState(true);
+  const [isDarkTheme, setIsDarkTheme] = useState<boolean>(() => {
+    try {
+      const stored = localStorage.getItem('adora_theme');
+      if (stored !== null) {
+        return stored === 'dark';
+      }
+    } catch {
+      // fallback
+    }
+    return true; // default dark
+  });
   const [isQuickReflectOpen, setIsQuickReflectOpen] = useState(false);
   const [quickText, setQuickText] = useState('');
   const [quickCategory, setQuickCategory] = useState<'personal' | 'professional' | 'strategic'>('professional');
@@ -44,7 +54,13 @@ export default function App() {
   const timerIntervalRef = useRef<any>(null);
 
   useEffect(() => {
-    // Apply dark class on html document root
+    // Apply dark class on html document root & persist
+    try {
+      localStorage.setItem('adora_theme', isDarkTheme ? 'dark' : 'light');
+    } catch {
+      // ignore
+    }
+
     if (isDarkTheme) {
       document.documentElement.classList.add('dark');
     } else {

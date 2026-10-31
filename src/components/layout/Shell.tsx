@@ -271,10 +271,11 @@ export const Shell: React.FC<ShellProps> = ({
             {/* Theme Toggle */}
             <button
               onClick={onToggleTheme}
-              className="p-2 rounded-lg text-stone-400 hover:text-stone-200 hover:bg-stone-900 border border-transparent hover:border-stone-800 transition-colors cursor-pointer"
-              title="Toggle theme"
+              className="p-2 rounded-lg text-stone-500 hover:text-amber-500 hover:bg-stone-100 dark:text-stone-400 dark:hover:text-amber-400 dark:hover:bg-stone-900 border border-transparent hover:border-stone-300 dark:hover:border-stone-800 transition-colors cursor-pointer"
+              title={isDarkTheme ? 'Switch to light mode' : 'Switch to dark mode'}
+              aria-label={isDarkTheme ? 'Switch to light mode' : 'Switch to dark mode'}
             >
-              {isDarkTheme ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+              {isDarkTheme ? <Sun className="w-4 h-4 text-amber-400" /> : <Moon className="w-4 h-4 text-stone-700" />}
             </button>
 
             {/* User Profile Pill */}
