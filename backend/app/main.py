@@ -46,8 +46,12 @@ import os
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 
+from app.api.v1.mcp import router as mcp_root_router
+
 # Mount v1 API
 app.include_router(api_router, prefix="/api/v1")
+# Mount standard MCP streamable endpoint at /mcp
+app.include_router(mcp_root_router, prefix="/mcp", tags=["Root MCP"])
 
 # Check for production frontend build (e.g. in /app/dist or ../../dist)
 possible_dist_paths = [

@@ -164,3 +164,79 @@ export interface ExecuteTaskResponse {
   task: Task;
   receipt: ExecutionReceipt;
 }
+
+// ==========================================
+// RAG & MCP CONTRACTS
+// ==========================================
+
+export interface RAGDocument {
+  documentId: string;
+  title: string;
+  sourceType: string;
+  contentHash: string;
+  wordCount: number;
+  charCount?: number;
+  chunkCount: number;
+  embeddingModel: string;
+  dimensions: number;
+  tags: string[];
+  createdAt: string;
+  indexStatus: 'pending' | 'indexed' | 'failed';
+}
+
+export interface RAGSearchMatch {
+  recordId: string;
+  chunkId: string;
+  parentDocId: string;
+  content: string;
+  score: number;
+  metadata: {
+    title: string;
+    sourceType: string;
+    headingPath?: string[];
+    tags?: string[];
+  };
+  retrievalMethod: 'vector' | 'lexical' | 'hybrid_rrf';
+}
+
+export interface RAGSearchResponse {
+  results: RAGSearchMatch[];
+  total: number;
+}
+
+export interface RAGAskResponse {
+  answer: string;
+  citations: Array<{
+    chunkId: string;
+    documentId: string;
+    title: string;
+    sourceType: string;
+    snippet: string;
+    score: number;
+    explicitlyCited: boolean;
+  }>;
+  confidenceScore: number;
+  insufficientContext: boolean;
+  model: string;
+}
+
+export interface MCPToolItem {
+  name: string;
+  description: string;
+  inputSchema: Record<string, unknown>;
+  consequentialityTier: 0 | 1 | 2;
+  requiresApproval: boolean;
+  readOnly: boolean;
+  requiredScopes?: string[];
+}
+
+export interface MCPServerItem {
+  serverId: string;
+  name: string;
+  endpointUrl: string;
+  isEnabled: boolean;
+  allowedTools: string[];
+  status: 'connected' | 'disconnected' | 'error';
+  lastConnectedAt?: string;
+  lastError?: string;
+}

@@ -155,5 +155,40 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ text }),
     }),
+
+  // RAG Knowledge Engine
+  getRAGDocuments: () => request<{ items: any[] }>('/rag/documents'),
+  ingestRAGDocument: (data: { title: string; text: string; sourceType?: string }) =>
+    request<{ documentId: string; title: string; status: string; chunkCount: number }>('/rag/ingest/text', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  searchRAG: (query: string, topK: number = 5) =>
+    request<{ results: any[]; total: number }>('/rag/search', {
+      method: 'POST',
+      body: JSON.stringify({ query, top_k: topK }),
+    }),
+  askRAG: (question: string, topK: number = 5) =>
+    request<any>('/rag/ask', {
+      method: 'POST',
+      body: JSON.stringify({ question, top_k: topK }),
+    }),
+  deleteRAGDocument: (docId: string) =>
+    request<{ documentId: string; status: string }>(`/rag/documents/${docId}`, {
+      method: 'DELETE',
+    }),
+
+  // MCP Server & Ecosystem
+  getMCPTools: () => request<{ tools: any[] }>('/mcp/tools'),
+  callMCPTool: (toolName: string, args: Record<string, unknown> = {}, isApproved: boolean = false) =>
+    request<any>('/mcp/tools/call', {
+      method: 'POST',
+      body: JSON.stringify({ toolName, arguments: args, isApproved }),
+    }),
+  getMCPServers: () => request<{ servers: any[] }>('/mcp/servers'),
+  connectMCPServer: (serverId: string) =>
+    request<any>(`/mcp/servers/${serverId}/connect`, {
+      method: 'POST',
+    }),
 };
 

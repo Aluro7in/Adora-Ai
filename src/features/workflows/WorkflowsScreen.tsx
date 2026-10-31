@@ -43,17 +43,20 @@ export const WorkflowsScreen: React.FC<{ onNavigateToTasks: () => void }> = ({ o
     }
   }
 
+  const [planningError, setPlanningError] = useState<string | null>(null);
+
   const handlePlanWorkflow = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!goalInput.trim() || isPlanning) return;
 
     try {
       setIsPlanning(true);
+      setPlanningError(null);
       await api.planWorkflow({ goal: goalInput.trim() });
       setGoalInput('');
       await loadData();
     } catch (err: any) {
-      alert(`Planning failed: ${err.message}`);
+      setPlanningError(`Planning failed: ${err.message}`);
     } finally {
       setIsPlanning(false);
     }
@@ -93,6 +96,11 @@ export const WorkflowsScreen: React.FC<{ onNavigateToTasks: () => void }> = ({ o
           </div>
 
           <div className="flex items-center justify-between pt-2">
+            {planningError && (
+              <div className="p-3 bg-rose-950/40 border border-rose-800/60 rounded-lg text-xs text-rose-300">
+                {planningError}
+              </div>
+            )}
             <span className="text-xs text-stone-500">
               Consequential actions (emails, mutations) will halt for explicit human approval.
             </span>

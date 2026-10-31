@@ -66,7 +66,7 @@ export const ChatScreen: React.FC = () => {
         content: res.answer,
         timestamp: new Date().toISOString(),
         citations: res.citations,
-        model: useHighThinking ? 'gemini-4-argon (High Thinking)' : res.model,
+        model: useHighThinking ? 'Adora AI (Deep Reflection)' : (res.model || 'NVIDIA Nemotron 3.5 Lightning (Nebius)'),
       };
 
       setMessages((prev) => [...prev, assistantMessage]);
@@ -85,12 +85,12 @@ export const ChatScreen: React.FC = () => {
 
   return (
     <div className="h-[calc(100vh-8.5rem)] flex flex-col space-y-4 animate-in fade-in duration-200">
-      {/* Top Banner: Engine Status & High Thinking Toggle */}
+      {/* Top Banner: Engine Status & Deep Reflection Toggle */}
       <div className="flex flex-wrap items-center justify-between gap-3 p-3.5 rounded-xl border border-stone-800 bg-stone-900/60 backdrop-blur-sm shrink-0">
         <div className="flex items-center gap-2">
           <Cpu className="w-4 h-4 text-amber-400" />
           <span className="text-xs font-semibold text-stone-200">
-            {useHighThinking ? 'Gemini 4 Argon (High Thinking Active)' : 'NVIDIA Nemotron 3.5 Lightning (Nebius)'}
+            {useHighThinking ? 'Adora AI (Deep Reflection Mode Active)' : 'NVIDIA Nemotron 3.5 Lightning (Nebius Token Factory)'}
           </span>
           <span className="text-[10px] font-mono uppercase bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 px-1.5 py-0.5 rounded">
             Grounded
@@ -107,7 +107,7 @@ export const ChatScreen: React.FC = () => {
             />
             <span className="flex items-center gap-1 font-mono text-[11px]">
               <Brain className="w-3.5 h-3.5 text-purple-400" />
-              <span>High-Thinking Mode</span>
+              <span>Deep Reflection Mode</span>
             </span>
           </label>
         </div>

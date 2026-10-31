@@ -5,7 +5,13 @@ Adora AI — Nebius Token Factory Client for NVIDIA Nemotron Inference
 import time
 import json
 from typing import Dict, Any, List, Optional
-from openai import AsyncOpenAI
+try:
+    from openai import AsyncOpenAI
+    _has_openai = True
+except ImportError:
+    AsyncOpenAI = None
+    _has_openai = False
+
 from app.core.config import settings
 from app.core.logging import logger
 
@@ -151,5 +157,59 @@ JSON:"""
             logger.error(f"Nemotron planning error: {e}")
             raise e
 
+    async def generate_grounded_response(
+        self,
+        message: str,
+        citations: List[Dict[str, Any]],
+        use_deep_reflection: bool = False,
+    ) -> str:
+        """
+        Generates a grounded conversational answer using NVIDIA Nemotron.
+        """
+        if not self.is_configured():
+            if citations:
+                return (
+                    f"I hear you regarding '{message.strip()}'. "
+                    f"Grounding in your Memory Vault: in '{citations[0]['title']}', you noted that '{citations[0]['quote']}' [cite:{citations[0]['id']}]."
+                )
+            return (
+                f"I hear you regarding '{message.strip()}'. "
+                "Your vault currently has no stored memories for direct citation yet. Record reflections or approve candidate memories to ground future conversations in your personal history."
+            )
+
+        context_block = ""
+        if citations:
+            context_block = "Verified User Memory Citations:\n" + "\n".join(
+                [f"- [{c['id']}] {c['title']}: {c['quote']}" for c in citations]
+            )
+        else:
+            context_block = "No direct memory citations available."
+
+        system_prompt = (
+            "You are Adora AI, an empathetic, reflective intelligence assistant powered by NVIDIA Nemotron. "
+            "You ground advice directly in the user's approved memories and experiences. "
+            "Never invent false memories or psychological diagnoses. "
+            "When citing a memory, use the tag [cite:ID]."
+        )
+        if use_deep_reflection:
+            system_prompt += " Provide an in-depth reflective inquiry, highlighting implicit assumptions, underlying values, and actionable next steps."
+
+        user_content = f"{context_block}\n\nUser Question:\n{message}"
+
+        try:
+            response = await self.client.chat.completions.create(
+                model=self.model,
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_content},
+                ],
+                temperature=0.3,
+            )
+            return response.choices[0].message.content or "No response generated."
+        except Exception as e:
+            logger.error(f"Nemotron chat generation error: {e}")
+            raise e
+
 
 nebius_client = NebiusNemotronClient()
+

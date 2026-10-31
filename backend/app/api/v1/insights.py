@@ -9,21 +9,20 @@ from datetime import datetime
 from app.core.security import UserContext, get_current_user
 from app.schemas.insight import InsightResponse, InsightStatusUpdate
 from app.schemas.common import ApiResponse
-from app.api.v1.reflections import _reflections_db
+from app.repositories.firestore_repo import firestore_repo
 
 router = APIRouter()
-_insights_db = []
 
 
 @router.get("", response_model=ApiResponse[List[InsightResponse]])
 async def list_insights(user: UserContext = Depends(get_current_user)):
-    items = [i for i in _insights_db if i["userId"] == user.uid]
+    items = await firestore_repo.list_insights(user.uid)
     return ApiResponse(success=True, data=items)
 
 
 @router.post("/discover")
 async def discover_insights(user: UserContext = Depends(get_current_user)):
-    user_refs = [r for r in _reflections_db if r["userId"] == user.uid]
+    user_refs = await firestore_repo.list_reflections(user.uid)
     if not user_refs:
         return ApiResponse(
             success=True,
@@ -40,8 +39,8 @@ async def discover_insights(user: UserContext = Depends(get_current_user)):
         "supportingEvidence": [
             {
                 "reflectionId": user_refs[0]["id"],
-                "quote": user_refs[0]["rawText"][:80] + "...",
-                "timestamp": user_refs[0]["createdAt"],
+                "quote": user_refs[0].get("rawText", "")[:80] + "...",
+                "timestamp": user_refs[0].get("createdAt", now),
             }
         ],
         "counterEvidence": [],
@@ -51,7 +50,7 @@ async def discover_insights(user: UserContext = Depends(get_current_user)):
         "createdAt": now,
         "updatedAt": now,
     }
-    _insights_db.insert(0, candidate)
+    await firestore_repo.save_insight(user.uid, candidate)
     return ApiResponse(success=True, data={"candidateInsights": [candidate]})
 
 
@@ -61,13 +60,9 @@ async def update_insight_status(
     insight_id: str = Path(...),
     user: UserContext = Depends(get_current_user),
 ):
-    target = next((i for i in _insights_db if i["id"] == insight_id and i["userId"] == user.uid), None)
+    target = await firestore_repo.update_insight_status(user.uid, insight_id, payload.status, payload.user_notes)
     if not target:
         return ApiResponse(success=False, error={"code": "RESOURCE_NOT_FOUND", "message": "Insight not found"})
 
-    target["status"] = payload.status
-    if payload.user_notes is not None:
-        target["userNotes"] = payload.user_notes
-    target["updatedAt"] = datetime.utcnow().isoformat()
-
     return ApiResponse(success=True, data=target)
+

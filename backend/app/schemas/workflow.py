@@ -1,14 +1,53 @@
 """
 Adora AI — Workflow & Task Schemas
+Supports Pydantic with standard library fallback.
 """
 
 from typing import List, Optional, Dict, Any
-from pydantic import BaseModel, Field
 from datetime import datetime
+
+try:
+    from pydantic import BaseModel, Field
+    _has_pydantic = True
+except ImportError:
+    _has_pydantic = False
+
+    class BaseModel:
+        def __init__(self, **kwargs):
+            aliases = {
+                "userId": "user_id",
+                "workflowId": "workflow_id",
+                "toolName": "tool_name",
+                "toolArguments": "tool_arguments",
+                "consequentialityTier": "consequentiality_tier",
+                "approvedAt": "approved_at",
+                "executedAt": "executed_at",
+                "verifiedAt": "verified_at",
+                "executionResult": "execution_result",
+                "createdAt": "created_at",
+                "updatedAt": "updated_at",
+                "taskIds": "task_ids",
+                "taskId": "task_id",
+                "inputPayloadHash": "input_payload_hash",
+                "outputPayloadHash": "output_payload_hash",
+                "verificationStatus": "verification_status",
+                "verificationDetails": "verification_details",
+            }
+            for k, v in kwargs.items():
+                target_key = aliases.get(k, k)
+                setattr(self, target_key, v)
+
+        def model_dump(self):
+            return {k: v for k, v in self.__dict__.items() if not k.startswith("_")}
+
+    def Field(default=None, default_factory=None, **kwargs):
+        if default_factory:
+            return default_factory()
+        return default
 
 
 class WorkflowPlanRequest(BaseModel):
-    goal: str = Field(..., min_length=3, max_length=500)
+    goal: str = Field(...)
     context: Optional[str] = None
 
 

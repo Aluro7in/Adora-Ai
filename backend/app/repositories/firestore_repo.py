@@ -111,16 +111,55 @@ class FirestoreRepository:
         coll.insert(0, receipt_doc)
         return receipt_doc
 
-    async def list_receipts(self, user_id: str) -> List[Dict[str, Any]]:
-        """Retrieves tamper-evident execution receipts"""
+    async def save_insight(self, user_id: str, insight_doc: Dict[str, Any]) -> Dict[str, Any]:
+        """Saves candidate or confirmed insight under users/{user_id}/insights/{insight_id}"""
         if self.client:
             try:
-                docs = self.client.collection("users").document(user_id).collection("execution_history").order_by("timestamp", direction=firestore.Query.DESCENDING).stream()
+                doc_ref = self.client.collection("users").document(user_id).collection("insights").document(insight_doc["id"])
+                doc_ref.set(insight_doc)
+                return insight_doc
+            except Exception as e:
+                logger.error(f"Firestore save_insight error: {e}")
+
+        coll = self._get_collection(user_id, "insights")
+        coll.insert(0, insight_doc)
+        return insight_doc
+
+    async def list_insights(self, user_id: str) -> List[Dict[str, Any]]:
+        """Lists user insights"""
+        if self.client:
+            try:
+                docs = self.client.collection("users").document(user_id).collection("insights").order_by("createdAt", direction=firestore.Query.DESCENDING).stream()
                 return [d.to_dict() for d in docs]
             except Exception as e:
-                logger.error(f"Firestore list_receipts error: {e}")
+                logger.error(f"Firestore list_insights error: {e}")
 
-        return self._get_collection(user_id, "receipts")
+        return self._get_collection(user_id, "insights")
+
+    async def update_insight_status(self, user_id: str, insight_id: str, status: str, user_notes: Optional[str] = None) -> Optional[Dict[str, Any]]:
+        """Updates insight status and optional notes"""
+        now = datetime.utcnow().isoformat()
+        if self.client:
+            try:
+                doc_ref = self.client.collection("users").document(user_id).collection("insights").document(insight_id)
+                update_data: Dict[str, Any] = {"status": status, "updatedAt": now}
+                if user_notes is not None:
+                    update_data["userNotes"] = user_notes
+                doc_ref.update(update_data)
+                snap = doc_ref.get()
+                return snap.to_dict() if snap.exists else None
+            except Exception as e:
+                logger.error(f"Firestore update_insight_status error: {e}")
+
+        coll = self._get_collection(user_id, "insights")
+        target = next((i for i in coll if i.get("id") == insight_id), None)
+        if target:
+            target["status"] = status
+            if user_notes is not None:
+                target["userNotes"] = user_notes
+            target["updatedAt"] = now
+            return target
+        return None
 
 
 firestore_repo = FirestoreRepository()

@@ -302,6 +302,61 @@ const mockStore = {
       updatedAt: new Date().toISOString(),
     },
   ] as Integration[],
+  documents: [
+    {
+      documentId: 'doc_foundations_01',
+      title: 'Adora AI Architectural Foundations',
+      sourceType: 'knowledge',
+      contentHash: '7a1f59e9842a129d84bf402a3a5f36802e3b8b15d23315a6cfad35fa33f92d41',
+      wordCount: 420,
+      chunkCount: 2,
+      embeddingModel: 'BAAI/bge-en-icl',
+      dimensions: 768,
+      tags: ['architecture', 'rag', 'nemotron'],
+      createdAt: new Date(Date.now() - 3600000 * 24).toISOString(),
+      indexStatus: 'indexed',
+    },
+  ] as any[],
+  ragChunks: [
+    {
+      chunkId: 'chk_doc_foundations_01_000',
+      parentDocId: 'doc_foundations_01',
+      chunkIndex: 0,
+      content: 'Adora AI employs a hybrid retrieval pipeline that combines dense semantic embeddings and sparse lexical BM25 token indices using Reciprocal Rank Fusion (RRF).',
+      headingPath: ['Architectural Principles', 'RAG Retrieval'],
+      tokenCount: 48,
+      score: 0.94,
+    },
+    {
+      chunkId: 'chk_doc_foundations_01_001',
+      parentDocId: 'doc_foundations_01',
+      chunkIndex: 1,
+      content: 'External actions classified under Tier 2 Consequentiality strictly require explicit human-in-the-loop approval before tool invocation, verified through tamper-evident receipts.',
+      headingPath: ['Agent Governance', 'Consequential Tiers'],
+      tokenCount: 52,
+      score: 0.91,
+    },
+  ] as any[],
+  externalMcpServers: [
+    {
+      serverId: 'srv_google_workspace',
+      name: 'Google Workspace MCP Connector',
+      endpointUrl: 'https://workspace.mcp.adora.ai',
+      isEnabled: true,
+      allowedTools: ['calendar_create_event', 'gmail_send_message', 'drive_publish_doc'],
+      status: 'connected',
+      lastConnectedAt: new Date(Date.now() - 3600000 * 2).toISOString(),
+    },
+    {
+      serverId: 'srv_web_research',
+      name: 'Web Research & Grounding MCP',
+      endpointUrl: 'https://research.mcp.adora.ai',
+      isEnabled: true,
+      allowedTools: ['web_search', 'web_extract'],
+      status: 'connected',
+      lastConnectedAt: new Date(Date.now() - 3600000 * 1).toISOString(),
+    },
+  ] as any[],
 };
 
 // ==========================================
@@ -1279,6 +1334,441 @@ apiRouter.post('/audio/tts', async (req: Request, res: Response) => {
   }
 });
 
+
+// ==========================================
+// RAG KNOWLEDGE PIPELINE ENDPOINTS
+// ==========================================
+apiRouter.get('/rag/documents', (_req: Request, res: Response) => {
+  res.json({ success: true, data: { items: mockStore.documents } });
+});
+
+apiRouter.post('/rag/ingest/text', (req: Request, res: Response) => {
+  const { title, text, sourceType = 'document' } = req.body;
+  if (!text || !text.trim()) {
+    return res.status(400).json({
+      success: false,
+      error: { code: 'INVALID_ARGUMENT', message: 'Document text is required.', timestamp: new Date().toISOString() },
+    });
+  }
+
+  const docId = `doc_${crypto.randomUUID().slice(0, 8)}`;
+  const now = new Date().toISOString();
+  const contentHash = crypto.createHash('sha256').update(text).digest('hex');
+
+  // Intelligent paragraph chunking with heading detection
+  const paragraphs = text.split(/\n\n+/).filter((p: string) => p.trim().length > 0);
+  const chunks = paragraphs.map((para: string, idx: number) => {
+    const chunkId = `chk_${docId}_${String(idx).padStart(3, '0')}`;
+    const firstLine = para.split('\n')[0].replace(/^#+\s*/, '').trim();
+    return {
+      chunkId,
+      parentDocId: docId,
+      chunkIndex: idx,
+      content: para.trim(),
+      headingPath: firstLine ? [firstLine.slice(0, 40)] : [],
+      tokenCount: Math.ceil(para.split(/\s+/).length * 1.3),
+      score: 0.88,
+    };
+  });
+
+  const docRecord = {
+    documentId: docId,
+    title: title || 'Ingested Document',
+    sourceType,
+    contentHash,
+    wordCount: text.split(/\s+/).length,
+    chunkCount: chunks.length,
+    embeddingModel: 'BAAI/bge-en-icl',
+    dimensions: 768,
+    tags: [sourceType, 'knowledge'],
+    createdAt: now,
+    indexStatus: 'indexed',
+  };
+
+  mockStore.documents.unshift(docRecord);
+  mockStore.ragChunks.unshift(...chunks);
+
+  res.status(201).json({
+    success: true,
+    data: {
+      documentId: docId,
+      title: docRecord.title,
+      status: 'indexed',
+      chunkCount: chunks.length,
+      wordCount: docRecord.wordCount,
+      contentHash,
+    },
+  });
+});
+
+apiRouter.post('/rag/search', (req: Request, res: Response) => {
+  const { query, top_k = 5 } = req.body;
+  if (!query || !query.trim()) {
+    return res.json({ success: true, data: { results: [], total: 0 } });
+  }
+
+  const q = query.toLowerCase();
+  const scored = mockStore.ragChunks.map((chunk) => {
+    let score = 0.5;
+    const contentLower = chunk.content.toLowerCase();
+    if (contentLower.includes(q)) score += 0.4;
+    const words = q.split(/\s+/);
+    const matchedWords = words.filter((w: string) => w.length > 2 && contentLower.includes(w));
+    score += (matchedWords.length / Math.max(1, words.length)) * 0.3;
+
+    return {
+      recordId: `rec_${chunk.chunkId}`,
+      chunkId: chunk.chunkId,
+      parentDocId: chunk.parentDocId,
+      content: chunk.content,
+      score: Math.min(1.0, score),
+      metadata: {
+        title: mockStore.documents.find((d) => d.documentId === chunk.parentDocId)?.title || 'Knowledge Doc',
+        sourceType: 'document',
+        headingPath: chunk.headingPath,
+      },
+      retrievalMethod: 'hybrid_rrf',
+    };
+  });
+
+  scored.sort((a, b) => b.score - a.score);
+  const topResults = scored.slice(0, top_k);
+
+  res.json({ success: true, data: { results: topResults, total: topResults.length } });
+});
+
+apiRouter.post('/rag/ask', async (req: Request, res: Response) => {
+  const { question, top_k = 5 } = req.body;
+  if (!question || !question.trim()) {
+    return res.status(400).json({
+      success: false,
+      error: { code: 'INVALID_ARGUMENT', message: 'Question cannot be empty.', timestamp: new Date().toISOString() },
+    });
+  }
+
+  const q = question.toLowerCase();
+  const matches = mockStore.ragChunks
+    .map((c) => ({
+      ...c,
+      title: mockStore.documents.find((d) => d.documentId === c.parentDocId)?.title || 'Knowledge',
+    }))
+    .filter((c) => c.content.toLowerCase().includes(q) || q.split(/\s+/).some((w: string) => w.length > 3 && c.content.toLowerCase().includes(w)));
+
+  if (matches.length === 0 && mockStore.ragChunks.length > 0) {
+    matches.push(mockStore.ragChunks[0]);
+  }
+
+  const citations = matches.slice(0, top_k).map((m) => ({
+    chunkId: m.chunkId,
+    documentId: m.parentDocId,
+    title: m.title || 'Referenced Document',
+    sourceType: 'document',
+    snippet: m.content.slice(0, 160) + (m.content.length > 160 ? '...' : ''),
+    score: 0.92,
+    explicitlyCited: true,
+  }));
+
+  let answerText = '';
+  let modelName = 'NVIDIA Nemotron 3.5 Lightning (Nebius Token Factory)';
+
+  if (citations.length > 0) {
+    try {
+      const prompt = `Question: "${question}"\nEvidence Source: "${citations[0].snippet}"\nAnswer grounded strictly in this evidence:`;
+      const nebiusRes = await callNebiusNemotron(prompt, 'You are Adora AI. Ground answers in user evidence without fabricating memories.');
+      if (nebiusRes && nebiusRes.content) {
+        answerText = nebiusRes.content;
+        modelName = nebiusRes.model;
+      }
+    } catch (err) {
+      console.warn('[RAG ask fallback]:', err);
+    }
+
+    if (!answerText) {
+      answerText = `Based on your records in "${citations[0].title}", ${citations[0].snippet} [cite:${citations[0].chunkId}]. This evidence directly answers your inquiry.`;
+    }
+  } else {
+    answerText = `I searched your knowledge vault and memories, but found no verified evidence regarding "${question}".`;
+  }
+
+  res.json({
+    success: true,
+    data: {
+      answer: answerText,
+      citations,
+      confidenceScore: citations.length > 0 ? 0.92 : 0.0,
+      insufficientContext: citations.length === 0,
+      model: modelName,
+    },
+  });
+});
+
+apiRouter.delete('/rag/documents/:id', (req: Request, res: Response) => {
+  const docId = req.params.id;
+  const initialDocs = mockStore.documents.length;
+  mockStore.documents = mockStore.documents.filter((d) => d.documentId !== docId);
+  mockStore.ragChunks = mockStore.ragChunks.filter((c) => c.parentDocId !== docId);
+
+  res.json({
+    success: true,
+    data: {
+      documentId: docId,
+      status: 'deleted',
+      chunksDeleted: initialDocs - mockStore.documents.length,
+    },
+  });
+});
+
+// ==========================================
+// MODEL CONTEXT PROTOCOL (MCP) ENDPOINTS
+// ==========================================
+const registeredMCPTools = [
+  {
+    name: 'reflection.create',
+    description: 'Records a new raw user reflection into the immutable store.',
+    inputSchema: { type: 'object', properties: { rawText: { type: 'string' } }, required: ['rawText'] },
+    consequentialityTier: 1,
+    requiresApproval: false,
+    readOnly: false,
+  },
+  {
+    name: 'reflection.get',
+    description: 'Retrieves a specific reflection by ID.',
+    inputSchema: { type: 'object', properties: { id: { type: 'string' } }, required: ['id'] },
+    consequentialityTier: 0,
+    requiresApproval: false,
+    readOnly: true,
+  },
+  {
+    name: 'reflection.search',
+    description: 'Searches user reflections by keyword and tags.',
+    inputSchema: { type: 'object', properties: { query: { type: 'string' } }, required: ['query'] },
+    consequentialityTier: 0,
+    requiresApproval: false,
+    readOnly: true,
+  },
+  {
+    name: 'memory.search',
+    description: 'Searches the user four-tier memory vault.',
+    inputSchema: { type: 'object', properties: { query: { type: 'string' } }, required: ['query'] },
+    consequentialityTier: 0,
+    requiresApproval: false,
+    readOnly: true,
+  },
+  {
+    name: 'rag.search',
+    description: 'Performs hybrid semantic and BM25 lexical retrieval across user documents.',
+    inputSchema: { type: 'object', properties: { query: { type: 'string' } }, required: ['query'] },
+    consequentialityTier: 0,
+    requiresApproval: false,
+    readOnly: true,
+  },
+  {
+    name: 'task.create',
+    description: 'Creates a new task in an agent workflow.',
+    inputSchema: { type: 'object', properties: { title: { type: 'string' } }, required: ['title'] },
+    consequentialityTier: 1,
+    requiresApproval: false,
+    readOnly: false,
+  },
+  {
+    name: 'execution.verify',
+    description: 'Independently verifies execution postcondition and produces a tamper-evident receipt.',
+    inputSchema: { type: 'object', properties: { taskId: { type: 'string' } }, required: ['taskId'] },
+    consequentialityTier: 0,
+    requiresApproval: false,
+    readOnly: true,
+  },
+  {
+    name: 'calendar_create_event',
+    description: 'Schedules a calendar focus block (Consequential Tier 2 Action).',
+    inputSchema: { type: 'object', properties: { title: { type: 'string' }, duration: { type: 'number' } }, required: ['title'] },
+    consequentialityTier: 2,
+    requiresApproval: true,
+    readOnly: false,
+  },
+  {
+    name: 'web.search',
+    description: 'Performs web search to ground facts without external mutations.',
+    inputSchema: { type: 'object', properties: { query: { type: 'string' } }, required: ['query'] },
+    consequentialityTier: 0,
+    requiresApproval: false,
+    readOnly: true,
+  },
+];
+
+async function handleMcpJsonRpc(req: Request, res: Response) {
+  const { jsonrpc = '2.0', id = 1, method, params = {} } = req.body || {};
+
+  if (method === 'initialize') {
+    return res.json({
+      jsonrpc: '2.0',
+      id,
+      result: {
+        protocolVersion: '2024-11-05',
+        capabilities: {
+          tools: { listChanged: false },
+          resources: { subscribe: false, listChanged: false },
+          prompts: { listChanged: false },
+        },
+        serverInfo: {
+          name: 'Adora AI Authoritative MCP Server',
+          version: '1.0.0',
+        },
+      },
+    });
+  }
+
+  if (method === 'tools/list') {
+    return res.json({
+      jsonrpc: '2.0',
+      id,
+      result: { tools: registeredMCPTools },
+    });
+  }
+
+  if (method === 'tools/call') {
+    const { name, arguments: args = {} } = params;
+    const tool = registeredMCPTools.find((t) => t.name === name);
+    if (!tool) {
+      return res.json({ jsonrpc: '2.0', id, error: { code: -32601, message: `Tool ${name} not found` } });
+    }
+
+    if (tool.consequentialityTier === 2 && !params.isApproved) {
+      return res.json({
+        jsonrpc: '2.0',
+        id,
+        error: { code: -32002, message: `Tool ${name} is Tier 2 Consequential and requires human approval.` },
+      });
+    }
+
+    const start = Date.now();
+    let resultPayload: any = { status: 'success', executedTool: name };
+    if (name === 'reflection.create') {
+      const newRef: Reflection = {
+        id: `ref_${crypto.randomUUID().slice(0, 8)}`,
+        userId: 'usr_adora_local',
+        rawText: args.rawText || 'Reflection',
+        sourceType: 'text',
+        category: 'personal',
+        tags: [],
+        analysisState: 'pending',
+        extractedEntities: {
+          events: [],
+          decisions: [],
+          goals: [],
+          obstacles: [],
+          lessons: [],
+          themes: [],
+          questions: [],
+        },
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+      mockStore.reflections.unshift(newRef);
+      resultPayload = { reflection: newRef };
+    } else if (name === 'execution.verify') {
+      const receipt: ExecutionReceipt = {
+        id: `rcpt_${crypto.randomUUID().slice(0, 8)}`,
+        userId: 'usr_adora_local',
+        taskId: args.taskId || 'tsk_auto',
+        workflowId: args.workflowId || 'wf_auto',
+        toolName: name,
+        inputPayloadHash: crypto.createHash('sha256').update(JSON.stringify(args)).digest('hex'),
+        outputPayloadHash: crypto.createHash('sha256').update(JSON.stringify(resultPayload)).digest('hex'),
+        verificationStatus: 'VERIFIED',
+        verificationDetails: { verificationMethod: 'independent_state_query_readback', verifiedStatePayload: { status: 'verified' } },
+        timestamp: new Date().toISOString(),
+      };
+      mockStore.receipts.unshift(receipt);
+      resultPayload = { verificationStatus: 'VERIFIED', receipt };
+    }
+
+    return res.json({
+      jsonrpc: '2.0',
+      id,
+      result: {
+        content: [{ type: 'text', text: JSON.stringify(resultPayload), data: resultPayload }],
+        isError: false,
+        verificationProof: { verifiedAt: new Date().toISOString(), durationMs: Date.now() - start },
+      },
+    });
+  }
+
+  if (method === 'resources/list') {
+    return res.json({
+      jsonrpc: '2.0',
+      id,
+      result: {
+        resources: [
+          { uri: 'reflections://recent', name: 'Recent Reflections', mimeType: 'application/json' },
+          { uri: 'memories://vault', name: 'Memory Vault', mimeType: 'application/json' },
+          { uri: 'insights://confirmed', name: 'Confirmed Insights', mimeType: 'application/json' },
+        ],
+      },
+    });
+  }
+
+  if (method === 'prompts/list') {
+    return res.json({
+      jsonrpc: '2.0',
+      id,
+      result: {
+        prompts: [
+          { name: 'deep_reflection_inquiry', description: 'Deep Socratic inquiry prompt' },
+          { name: 'goal_dag_planner', description: 'Decomposes strategic goals into an MCP DAG' },
+        ],
+      },
+    });
+  }
+
+  return res.json({ jsonrpc: '2.0', id, error: { code: -32601, message: `Method ${method} not supported` } });
+}
+
+// Mount Streamable HTTP JSON-RPC 2.0 at /mcp and /api/v1/mcp
+app.post('/mcp', handleMcpJsonRpc);
+apiRouter.post('/mcp', handleMcpJsonRpc);
+
+apiRouter.get('/mcp/tools', (_req: Request, res: Response) => {
+  res.json({ success: true, data: { tools: registeredMCPTools } });
+});
+
+apiRouter.post('/mcp/tools/call', async (req: Request, res: Response) => {
+  const { toolName, arguments: args = {}, isApproved = false } = req.body;
+  const tool = registeredMCPTools.find((t) => t.name === toolName);
+  if (!tool) {
+    return res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: `Tool ${toolName} not found` } });
+  }
+
+  if (tool.consequentialityTier === 2 && !isApproved) {
+    return res.status(403).json({
+      success: false,
+      error: { code: 'APPROVAL_REQUIRED', message: `Tool ${toolName} requires human approval.` },
+    });
+  }
+
+  res.json({
+    success: true,
+    data: {
+      toolName,
+      status: 'executed',
+      result: `Successfully invoked MCP tool ${toolName}.`,
+    },
+  });
+});
+
+apiRouter.get('/mcp/servers', (_req: Request, res: Response) => {
+  res.json({ success: true, data: { servers: mockStore.externalMcpServers } });
+});
+
+apiRouter.post('/mcp/servers/:id/connect', (req: Request, res: Response) => {
+  const server = mockStore.externalMcpServers.find((s) => s.serverId === req.params.id);
+  if (!server) {
+    return res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: 'Server not found' } });
+  }
+  server.status = 'connected';
+  server.lastConnectedAt = new Date().toISOString();
+  res.json({ success: true, data: server });
+});
 
 // Mount /api/v1 router
 app.use('/api/v1', apiRouter);

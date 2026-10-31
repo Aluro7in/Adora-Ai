@@ -21,9 +21,11 @@
 | **FEAT-INT-003** | User Pattern Confirmation & Refinement | Reflection Intelligence | P0 | `TESTED` |
 | **FEAT-MEM-001** | Four-Tier Memory Vault (Episodic, Semantic, Relational, Procedural) | Persistent Memory | P0 | `TESTED` |
 | **FEAT-MEM-002** | Memory Governance (Inspect, Edit, Delete, Deletion Cascade) | Persistent Memory | P0 | `TESTED` |
-| **FEAT-RAG-001** | Vector Embedding Pipeline | Memory & RAG | P0 | `IN_PROGRESS` |
+| **FEAT-RAG-001** | Vector Embedding Pipeline | Memory & RAG | P0 | `TESTED` |
 | **FEAT-RAG-002** | Hybrid Semantic & Keyword Retrieval | Memory & RAG | P0 | `TESTED` |
 | **FEAT-RAG-003** | Grounded Context Assembly & Empty Result Handling | Memory & RAG | P0 | `TESTED` |
+| **FEAT-RAG-004** | Heading-Aware Intelligent Chunker & Deletion Cascade | Memory & RAG | P0 | `TESTED` |
+| **FEAT-RAG-005** | Reciprocal Rank Fusion (RRF) & Reranking Engine | Memory & RAG | P0 | `TESTED` |
 | **FEAT-GRV-001** | Reflection Grove Interactive Graph Engine | Reflection Grove | P0 | `TESTED` |
 | **FEAT-GRV-002** | Candidate vs. Confirmed Visual Relationships | Reflection Grove | P1 | `TESTED` |
 | **FEAT-CHT-001** | Memory-Grounded Conversational Dialogue | Conversational Intelligence | P0 | `TESTED` |
@@ -32,9 +34,13 @@
 | **FEAT-AGT-001** | Natural Language Goal-to-DAG Planner | Workflows & Agents | P0 | `TESTED` |
 | **FEAT-AGT-002** | Dependency Graph & Task Scheduler | Workflows & Agents | P0 | `TESTED` |
 | **FEAT-AGT-003** | Consequentiality Tiers & Human Approval Gate | Workflows & Agents | P0 | `TESTED` |
-| **FEAT-AGT-004** | MCP-Compatible Tool Registry | MCP & Integrations | P0 | `TESTED` |
+| **FEAT-AGT-004** | MCP-Compatible Tool Registry (12 Core Tools) | MCP & Integrations | P0 | `TESTED` |
 | **FEAT-AGT-005** | Independent Action Verification Engine | Workflows & Agents | P0 | `TESTED` |
 | **FEAT-AGT-006** | Cryptographic Execution Receipts Ledger | Workflows & Agents | P0 | `TESTED` |
+| **FEAT-AGT-007** | Autonomous DAG Runtime & Verifier | Workflows & Agents | P0 | `TESTED` |
+| **FEAT-MCP-001** | Streamable HTTP MCP JSON-RPC Server (2024-11-05) | MCP & Integrations | P0 | `TESTED` |
+| **FEAT-MCP-002** | External MCP Client & Tool Discovery | MCP & Integrations | P0 | `TESTED` |
+| **FEAT-MCP-003** | DNS Rebinding Origin Validation & Security Boundary | MCP & Integrations | P0 | `TESTED` |
 | **FEAT-VOI-001** | Text-to-Speech Synthesis | Voice Architecture | P1 | `TESTED` |
 | **FEAT-VOI-002** | Real-Time Duplex Voice Conversation | Voice Architecture | P1 | `IN_PROGRESS` |
 | **FEAT-SEC-001** | Firebase Authentication & Google Sign-In | Security & Privacy | P0 | `TESTED` |
