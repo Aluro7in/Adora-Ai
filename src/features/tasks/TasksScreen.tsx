@@ -15,13 +15,8 @@ import {
   Filter,
   Check,
   AlertCircle,
-  LayoutGrid,
-  List as ListIcon,
   FolderGit2,
   RefreshCw,
-  ArrowRight,
-  ShieldAlert,
-  SlidersHorizontal,
 } from 'lucide-react';
 import { Card } from '../../components/common/Card.tsx';
 import { Button } from '../../components/common/Button.tsx';
@@ -30,59 +25,6 @@ import { EmptyState } from '../../components/common/EmptyState.tsx';
 import { api } from '../../services/apiClient.ts';
 import { Task, TaskStatus } from '../../types/domain.ts';
 
-// Board Column Configuration
-interface BoardColumnDef {
-  id: TaskStatus;
-  title: string;
-  description: string;
-  color: string;
-  headerBg: string;
-  borderAccent: string;
-}
-
-const BOARD_COLUMNS: BoardColumnDef[] = [
-  {
-    id: 'PLANNED',
-    title: 'Planned',
-    description: 'Decomposed steps awaiting dispatch',
-    color: 'text-stone-400',
-    headerBg: 'bg-stone-800/40',
-    borderAccent: 'border-stone-700/60',
-  },
-  {
-    id: 'AWAITING_APPROVAL',
-    title: 'Awaiting Approval',
-    description: 'Tier 2 consequential actions requiring gatekeeper sign-off',
-    color: 'text-amber-400',
-    headerBg: 'bg-amber-950/20',
-    borderAccent: 'border-amber-500/40',
-  },
-  {
-    id: 'APPROVED',
-    title: 'Approved',
-    description: 'Authorized by user, ready for execution',
-    color: 'text-blue-400',
-    headerBg: 'bg-blue-950/20',
-    borderAccent: 'border-blue-500/40',
-  },
-  {
-    id: 'RUNNING',
-    title: 'In Progress',
-    description: 'Actively dispatching external tools',
-    color: 'text-cyan-400',
-    headerBg: 'bg-cyan-950/20',
-    borderAccent: 'border-cyan-500/40',
-  },
-  {
-    id: 'VERIFIED',
-    title: 'Verified',
-    description: 'Cryptographically proven with SHA-256 receipt',
-    color: 'text-emerald-400',
-    headerBg: 'bg-emerald-950/20',
-    borderAccent: 'border-emerald-500/40',
-  },
-];
-
 export const TasksScreen: React.FC<{ onNavigateToReceipts: () => void }> = ({
   onNavigateToReceipts,
 }) => {
@@ -90,9 +32,11 @@ export const TasksScreen: React.FC<{ onNavigateToReceipts: () => void }> = ({
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [selectedProject, setSelectedProject] = useState<string>('all');
   const [filterStatus, setFilterStatus] = useState<string>('all');
-  const [viewMode, setViewMode] = useState<'board' | 'list'>('board');
   const [isProcessing, setIsProcessing] = useState<string | null>(null);
-  const [feedbackMessage, setFeedbackMessage] = useState<{ text: string; type: 'success' | 'info' | 'error' } | null>(null);
+  const [feedbackMessage, setFeedbackMessage] = useState<{
+    text: string;
+    type: 'success' | 'info' | 'error';
+  } | null>(null);
 
   useEffect(() => {
     loadTasks();
@@ -136,7 +80,7 @@ export const TasksScreen: React.FC<{ onNavigateToReceipts: () => void }> = ({
         }
       }
 
-      // Text Search Query: matches title or project (and workflow/description)
+      // Text Search Query: matches title or project (and workflow/description/tool)
       if (q.length > 0) {
         const titleMatch = task.title.toLowerCase().includes(q);
         const projectMatch = Boolean(task.project && task.project.toLowerCase().includes(q));
@@ -158,7 +102,7 @@ export const TasksScreen: React.FC<{ onNavigateToReceipts: () => void }> = ({
     try {
       setIsProcessing(taskId);
       await api.approveTask(taskId);
-      setFeedbackMessage({ text: 'Task approved! Moved to Approved column.', type: 'success' });
+      setFeedbackMessage({ text: 'Task approved! Ready for execution.', type: 'success' });
       await loadTasks();
     } catch (err: any) {
       setFeedbackMessage({ text: `Approval failed: ${err.message}`, type: 'error' });
@@ -175,7 +119,7 @@ export const TasksScreen: React.FC<{ onNavigateToReceipts: () => void }> = ({
       const res = await api.executeTask(taskId);
       const digest = res.receipt.outputPayloadHash.slice(0, 10);
       setFeedbackMessage({
-        text: `Action executed & independently verified! Cryptographic receipt #${digest} generated. Moved to Verified column.`,
+        text: `Action executed & independently verified! Cryptographic receipt #${digest} generated.`,
         type: 'success',
       });
       await loadTasks();
@@ -187,13 +131,17 @@ export const TasksScreen: React.FC<{ onNavigateToReceipts: () => void }> = ({
     }
   };
 
-  // Handle moving task directly between columns / statuses on the board
+  // Handle moving task status directly
   const handleMoveStatus = async (taskId: string, targetStatus: TaskStatus) => {
     try {
       setIsProcessing(taskId);
-      // Optimistically update locally so Framer Motion animates instantly
+      // Optimistically update locally so status chip animates instantly
       setTasks((prev) =>
-        prev.map((t) => (t.id === taskId ? { ...t, status: targetStatus, updatedAt: new Date().toISOString() } : t))
+        prev.map((t) =>
+          t.id === taskId
+            ? { ...t, status: targetStatus, updatedAt: new Date().toISOString() }
+            : t
+        )
       );
       await api.updateTaskStatus(taskId, targetStatus);
       await loadTasks();
@@ -211,7 +159,8 @@ export const TasksScreen: React.FC<{ onNavigateToReceipts: () => void }> = ({
     setFilterStatus('all');
   };
 
-  const hasActiveFilters = searchQuery.trim().length > 0 || selectedProject !== 'all' || filterStatus !== 'all';
+  const hasActiveFilters =
+    searchQuery.trim().length > 0 || selectedProject !== 'all' || filterStatus !== 'all';
 
   return (
     <div className="space-y-6 animate-in fade-in duration-200">
@@ -220,43 +169,16 @@ export const TasksScreen: React.FC<{ onNavigateToReceipts: () => void }> = ({
         <div>
           <h2 className="text-xl font-bold tracking-tight text-stone-100 flex items-center gap-2">
             <CheckSquare className="w-5 h-5 text-amber-500" />
-            <span>Agent Tasks & Action Board</span>
+            <span>Agent Tasks & Action List</span>
           </h2>
           <p className="text-xs text-stone-400 mt-1 max-w-xl">
             Deterministic 8-state task execution. Consequential Tier 2 actions require explicit human approval.
-            Observe smooth Framer Motion transitions as status chips move across board columns upon approval and verification.
+            Track and verify autonomous and user-gated actions with cryptographic verification receipts.
           </p>
         </div>
 
-        {/* View Switcher & Reload */}
+        {/* Action Controls */}
         <div className="flex items-center gap-2 shrink-0">
-          <div className="flex items-center rounded-lg bg-stone-900 border border-stone-800 p-1">
-            <button
-              onClick={() => setViewMode('board')}
-              className={`flex items-center gap-1.5 px-3 py-1 rounded-md text-xs font-medium transition-all ${
-                viewMode === 'board'
-                  ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40 shadow-sm'
-                  : 'text-stone-400 hover:text-stone-200'
-              }`}
-              title="Board Kanban view with columns"
-            >
-              <LayoutGrid className="w-3.5 h-3.5" />
-              <span>Board Columns</span>
-            </button>
-            <button
-              onClick={() => setViewMode('list')}
-              className={`flex items-center gap-1.5 px-3 py-1 rounded-md text-xs font-medium transition-all ${
-                viewMode === 'list'
-                  ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40 shadow-sm'
-                  : 'text-stone-400 hover:text-stone-200'
-              }`}
-              title="Detailed list view"
-            >
-              <ListIcon className="w-3.5 h-3.5" />
-              <span>List View</span>
-            </button>
-          </div>
-
           <Button
             variant="ghost"
             size="sm"
@@ -294,7 +216,7 @@ export const TasksScreen: React.FC<{ onNavigateToReceipts: () => void }> = ({
             </div>
             <button
               onClick={() => setFeedbackMessage(null)}
-              className="text-stone-400 hover:text-stone-200"
+              className="text-stone-400 hover:text-stone-200 cursor-pointer"
             >
               <X className="w-3.5 h-3.5" />
             </button>
@@ -318,7 +240,7 @@ export const TasksScreen: React.FC<{ onNavigateToReceipts: () => void }> = ({
             {searchQuery && (
               <button
                 onClick={() => setSearchQuery('')}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-stone-400 hover:text-stone-200 transition-colors p-1"
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-stone-400 hover:text-stone-200 transition-colors p-1 cursor-pointer"
                 title="Clear search input"
               >
                 <X className="w-3.5 h-3.5" />
@@ -335,9 +257,11 @@ export const TasksScreen: React.FC<{ onNavigateToReceipts: () => void }> = ({
               <select
                 value={selectedProject}
                 onChange={(e) => setSelectedProject(e.target.value)}
-                className="bg-stone-950 border border-stone-800 text-stone-300 text-xs rounded-lg px-2.5 py-1.5 focus:outline-none focus:border-amber-500/50"
+                className="bg-stone-950 border border-stone-800 text-stone-300 text-xs rounded-lg px-2.5 py-1.5 focus:outline-none focus:border-amber-500/50 cursor-pointer"
               >
-                <option value="all">All Projects ({uniqueProjects.length > 0 ? uniqueProjects.length : 'All'})</option>
+                <option value="all">
+                  All Projects ({uniqueProjects.length > 0 ? uniqueProjects.length : 'All'})
+                </option>
                 {uniqueProjects.map((p) => (
                   <option key={p} value={p}>
                     {p}
@@ -353,7 +277,7 @@ export const TasksScreen: React.FC<{ onNavigateToReceipts: () => void }> = ({
               <select
                 value={filterStatus}
                 onChange={(e) => setFilterStatus(e.target.value)}
-                className="bg-stone-950 border border-stone-800 text-stone-300 text-xs rounded-lg px-2.5 py-1.5 focus:outline-none focus:border-amber-500/50"
+                className="bg-stone-950 border border-stone-800 text-stone-300 text-xs rounded-lg px-2.5 py-1.5 focus:outline-none focus:border-amber-500/50 cursor-pointer"
               >
                 <option value="all">All Statuses ({tasks.length})</option>
                 <option value="PLANNED">Planned</option>
@@ -385,7 +309,7 @@ export const TasksScreen: React.FC<{ onNavigateToReceipts: () => void }> = ({
             </span>
             <button
               onClick={() => setSelectedProject('all')}
-              className={`px-2 py-0.5 rounded text-[11px] transition-colors ${
+              className={`px-2 py-0.5 rounded text-[11px] transition-colors cursor-pointer ${
                 selectedProject === 'all'
                   ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
                   : 'bg-stone-800 text-stone-400 hover:text-stone-200 border border-stone-700/60'
@@ -397,7 +321,7 @@ export const TasksScreen: React.FC<{ onNavigateToReceipts: () => void }> = ({
               <button
                 key={proj}
                 onClick={() => setSelectedProject(selectedProject === proj ? 'all' : proj)}
-                className={`px-2 py-0.5 rounded text-[11px] transition-colors ${
+                className={`px-2 py-0.5 rounded text-[11px] transition-colors cursor-pointer ${
                   selectedProject === proj
                     ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
                     : 'bg-stone-800/80 text-stone-400 hover:text-stone-200 border border-stone-700/50'
@@ -419,7 +343,7 @@ export const TasksScreen: React.FC<{ onNavigateToReceipts: () => void }> = ({
         </div>
       </div>
 
-      {/* Main Content: Board View vs List View */}
+      {/* Main Content: Detailed List View */}
       {filteredTasks.length === 0 ? (
         <EmptyState
           icon={<CheckSquare className="w-8 h-8 text-stone-500" />}
@@ -437,205 +361,8 @@ export const TasksScreen: React.FC<{ onNavigateToReceipts: () => void }> = ({
             ) : undefined
           }
         />
-      ) : viewMode === 'board' ? (
-        /* ========================================================================= */
-        /* TASK BOARD COMPONENT WITH COLUMNS & FRAMER MOTION TRANSITIONS */
-        /* ========================================================================= */
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4 items-start">
-          {BOARD_COLUMNS.map((col) => {
-            // Tasks assigned to this column
-            const columnTasks = filteredTasks.filter((t) => {
-              if (col.id === 'RUNNING') {
-                return t.status === 'RUNNING' || t.status === 'EXECUTED';
-              }
-              return t.status === col.id;
-            });
-
-            return (
-              <div
-                key={col.id}
-                className="flex flex-col bg-stone-900/60 border border-stone-800 rounded-xl overflow-hidden min-h-[460px] shadow-sm"
-              >
-                {/* Column Header */}
-                <div className={`p-3 border-b ${col.borderAccent} ${col.headerBg} flex items-center justify-between`}>
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <span className={`text-xs font-bold uppercase tracking-wider ${col.color}`}>
-                        {col.title}
-                      </span>
-                      <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-stone-850 text-stone-300 border border-stone-700">
-                        {columnTasks.length}
-                      </span>
-                    </div>
-                    <p className="text-[10px] text-stone-400 mt-0.5 line-clamp-1">{col.description}</p>
-                  </div>
-                </div>
-
-                {/* Column Cards Container */}
-                <div className="p-2.5 flex-1 flex flex-col gap-2.5 overflow-y-auto max-h-[720px]">
-                  <AnimatePresence mode="popLayout">
-                    {columnTasks.length === 0 ? (
-                      <motion.div
-                        key={`empty-${col.id}`}
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        exit={{ opacity: 0 }}
-                        className="p-6 text-center border border-dashed border-stone-800/80 rounded-xl my-auto text-stone-500 text-xs"
-                      >
-                        No tasks in this column
-                      </motion.div>
-                    ) : (
-                      columnTasks.map((task) => {
-                        const isAwaiting = task.status === 'AWAITING_APPROVAL';
-                        const isApproved = task.status === 'APPROVED';
-                        const isVerified = task.status === 'VERIFIED';
-                        const isBusy = isProcessing === task.id;
-
-                        return (
-                          <motion.div
-                            key={task.id}
-                            layout
-                            layoutId={`task-card-${task.id}`}
-                            initial={{ opacity: 0, scale: 0.96, y: 8 }}
-                            animate={{ opacity: 1, scale: 1, y: 0 }}
-                            exit={{ opacity: 0, scale: 0.94 }}
-                            transition={{
-                              type: 'spring',
-                              stiffness: 420,
-                              damping: 30,
-                              mass: 0.8,
-                            }}
-                            className={`p-3.5 rounded-xl border bg-stone-950/80 shadow-md flex flex-col justify-between gap-3 group transition-colors ${
-                              isAwaiting
-                                ? 'border-amber-500/50 hover:border-amber-400/70 bg-amber-950/10'
-                                : isVerified
-                                ? 'border-emerald-500/40 hover:border-emerald-400/60'
-                                : 'border-stone-800 hover:border-stone-700'
-                            }`}
-                          >
-                            {/* Card Header & Status Chip */}
-                            <div className="space-y-2">
-                              {/* Task Status Chip with Framer Motion Transition */}
-                              <div className="flex items-center justify-between gap-1">
-                                <motion.div
-                                  layout
-                                  layoutId={`status-chip-${task.id}`}
-                                  transition={{
-                                    type: 'spring',
-                                    stiffness: 450,
-                                    damping: 28,
-                                    mass: 0.8,
-                                  }}
-                                >
-                                  <StatusPill
-                                    status={task.status}
-                                    layoutId={`status-pill-inner-${task.id}`}
-                                  />
-                                </motion.div>
-                                <TierBadge tier={task.consequentialityTier} />
-                              </div>
-
-                              {/* Project Tag */}
-                              {task.project && (
-                                <div className="flex items-center gap-1 text-[10px] text-amber-400/90 font-medium">
-                                  <FolderGit2 className="w-3 h-3 text-amber-500/70 shrink-0" />
-                                  <span className="truncate">{task.project}</span>
-                                </div>
-                              )}
-
-                              {/* Task Title */}
-                              <h4 className="text-xs font-semibold text-stone-100 leading-snug line-clamp-2">
-                                {task.title}
-                              </h4>
-
-                              {/* Task Description */}
-                              <p className="text-[11px] text-stone-400 leading-relaxed line-clamp-3">
-                                {task.description}
-                              </p>
-                            </div>
-
-                            {/* Card Footer: Metadata and Action Transitions */}
-                            <div className="space-y-2 pt-2 border-t border-stone-850">
-                              <div className="flex items-center justify-between text-[10px] font-mono text-stone-500">
-                                <span>tool: {task.toolName}</span>
-                                <span>#{task.id.slice(0, 7)}</span>
-                              </div>
-
-                              {/* Contextual Actions to Trigger Column Moves */}
-                              <div className="flex flex-col gap-1.5 pt-1">
-                                {/* Tier 2 Gate: Approve Action */}
-                                {isAwaiting && (
-                                  <Button
-                                    variant="primary"
-                                    size="sm"
-                                    isLoading={isBusy}
-                                    icon={<Check className="w-3.5 h-3.5" />}
-                                    onClick={() => handleApprove(task.id)}
-                                    className="w-full text-xs justify-center"
-                                  >
-                                    Approve Action
-                                  </Button>
-                                )}
-
-                                {/* Execute & Verify Action */}
-                                {(isApproved || task.consequentialityTier < 2) && !isVerified && (
-                                  <Button
-                                    variant="secondary"
-                                    size="sm"
-                                    isLoading={isBusy}
-                                    icon={<Play className="w-3.5 h-3.5 text-amber-400" />}
-                                    onClick={() => handleExecute(task.id)}
-                                    className="w-full text-xs justify-center"
-                                  >
-                                    Execute & Verify
-                                  </Button>
-                                )}
-
-                                {/* Verified Cryptographic Receipt */}
-                                {isVerified && (
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    onClick={onNavigateToReceipts}
-                                    icon={<ExternalLink className="w-3 h-3 text-emerald-400" />}
-                                    className="w-full text-xs justify-center text-emerald-300 hover:text-emerald-200"
-                                  >
-                                    View Receipt
-                                  </Button>
-                                )}
-
-                                {/* Move Column Quick Selector: Demonstrates Framer Motion chip glide between columns */}
-                                <div className="flex items-center justify-between gap-1 pt-1 text-[10px] text-stone-500">
-                                  <span>Move to:</span>
-                                  <select
-                                    value={task.status}
-                                    disabled={isBusy}
-                                    onChange={(e) => handleMoveStatus(task.id, e.target.value as TaskStatus)}
-                                    className="bg-stone-900 border border-stone-800 text-stone-300 text-[10px] rounded px-1.5 py-0.5 focus:outline-none focus:border-amber-500/40 cursor-pointer"
-                                  >
-                                    <option value="PLANNED">Planned</option>
-                                    <option value="AWAITING_APPROVAL">Awaiting Approval</option>
-                                    <option value="APPROVED">Approved</option>
-                                    <option value="RUNNING">In Progress</option>
-                                    <option value="VERIFIED">Verified</option>
-                                  </select>
-                                </div>
-                              </div>
-                            </div>
-                          </motion.div>
-                        );
-                      })
-                    )}
-                  </AnimatePresence>
-                </div>
-              </div>
-            );
-          })}
-        </div>
       ) : (
-        /* ========================================================================= */
-        /* DETAILED LIST VIEW WITH FRAMER MOTION CHIP TRANSITIONS */
-        /* ========================================================================= */
+        /* Detailed List View with Framer Motion transitions */
         <div className="space-y-3">
           <AnimatePresence mode="popLayout">
             {filteredTasks.map((task) => {
@@ -660,7 +387,9 @@ export const TasksScreen: React.FC<{ onNavigateToReceipts: () => void }> = ({
                 >
                   <Card
                     className={`p-4 border transition-all ${
-                      isAwaiting ? 'border-amber-500/50 bg-amber-950/10' : 'border-stone-800 bg-stone-900/90'
+                      isAwaiting
+                        ? 'border-amber-500/50 bg-amber-950/10'
+                        : 'border-stone-800 bg-stone-900/90'
                     }`}
                   >
                     <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
@@ -749,12 +478,12 @@ export const TasksScreen: React.FC<{ onNavigateToReceipts: () => void }> = ({
                           </Button>
                         )}
 
-                        {/* Column Transition Selector */}
+                        {/* Status Transition Selector */}
                         <select
                           value={task.status}
                           disabled={isBusy}
                           onChange={(e) => handleMoveStatus(task.id, e.target.value as TaskStatus)}
-                          className="bg-stone-900 border border-stone-800 text-stone-300 text-xs rounded-lg px-2.5 py-1.5 focus:outline-none focus:border-amber-500/40"
+                          className="bg-stone-900 border border-stone-800 text-stone-300 text-xs rounded-lg px-2.5 py-1.5 focus:outline-none focus:border-amber-500/40 cursor-pointer"
                         >
                           <option value="PLANNED">Planned</option>
                           <option value="AWAITING_APPROVAL">Awaiting Approval</option>
