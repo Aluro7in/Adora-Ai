@@ -6,7 +6,7 @@
 ---
 
 ## ADR-001: Express on Node.js as Authoritative Full-Stack Backend
-- **Context**: Google AI Studio provides a Node.js development and execution runtime running on port 3000. While future microservices may run Python on Cloud Run, introducing a Python runtime inside this applet violates platform constraints.
+- **Context**: Google provides a Node.js development and execution runtime running on port 3000. While future microservices may run Python on Cloud Run, introducing a Python runtime inside this applet violates platform constraints.
 - **Decision**: Build the authoritative backend entirely in TypeScript using Express mounted alongside Vite dev middleware. All security, authentication, orchestration, and API handling reside in Node.js.
 - **Consequences**: High development speed, unified TypeScript types across frontend and backend, single container deployment.
 
