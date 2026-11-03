@@ -27,7 +27,9 @@ import { EmptyState } from '../../components/common/EmptyState.tsx';
 import { api } from '../../services/apiClient.ts';
 import { Reflection, ReflectionCategory } from '../../types/domain.ts';
 
-export const ReflectScreen: React.FC = () => {
+export const ReflectScreen: React.FC<{
+  onShowToast?: (summary: string, tags?: string[]) => void;
+}> = ({ onShowToast }) => {
   const [reflections, setReflections] = useState<Reflection[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<ReflectionCategory>('professional');
   const [filterCategory, setFilterCategory] = useState<string>('all');
@@ -123,7 +125,7 @@ export const ReflectScreen: React.FC = () => {
       setIsRecording(true);
     } catch (err: any) {
       console.error('Microphone error:', err);
-      alert(`Could not start microphone: ${err.message}`);
+      setStatusMessage(`Could not start microphone: ${err.message}`);
     }
   };
 
@@ -133,7 +135,6 @@ export const ReflectScreen: React.FC = () => {
       setIsRecording(false);
     }
   };
-
 
   async function loadReflections() {
     try {
@@ -168,15 +169,20 @@ export const ReflectScreen: React.FC = () => {
       setIsRecording(false);
       await loadReflections();
 
+      // Show Gemini 1-sentence core takeaway toast
+      if (res.summary && onShowToast) {
+        onShowToast(res.summary, parsedTags);
+      }
+
       // Trigger automatic Nemotron entity extraction
       if (res.reflection) {
         handleTriggerExtraction(res.reflection);
       }
     } catch (err: any) {
-      alert(`Error saving reflection: ${err.message}`);
+      setStatusMessage(`Error saving reflection: ${err.message}`);
     } finally {
       setIsSubmitting(false);
-      setTimeout(() => setStatusMessage(null), 4000);
+      setTimeout(() => setStatusMessage(null), 5000);
     }
   };
 
@@ -192,7 +198,7 @@ export const ReflectScreen: React.FC = () => {
       });
       await loadReflections();
     } catch (err: any) {
-      alert(`Analysis failed: ${err.message}`);
+      setStatusMessage(`Analysis note: ${err.message}`);
     } finally {
       setIsAnalyzing(false);
     }
@@ -208,9 +214,9 @@ export const ReflectScreen: React.FC = () => {
         sourceReflectionIds: activeAnalysisRef ? [activeAnalysisRef.id] : [],
         tags: [activeAnalysisRef?.category || 'reflection'],
       });
-      alert('Promoted candidate to permanent Memory Vault!');
+      setStatusMessage('Promoted candidate to permanent Memory Vault!');
     } catch (err: any) {
-      alert(`Promotion failed: ${err.message}`);
+      setStatusMessage(`Promotion failed: ${err.message}`);
     }
   };
 

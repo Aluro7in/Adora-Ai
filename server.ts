@@ -437,7 +437,59 @@ apiRouter.get('/reflections', (req: Request, res: Response) => {
   res.json({ success: true, data: { items } });
 });
 
-apiRouter.post('/reflections', (req: Request, res: Response) => {
+async function generateReflectionTakeaway(rawText: string): Promise<string> {
+  if (!rawText || !rawText.trim()) {
+    return 'Captured a new reflection.';
+  }
+
+  // 1. Generate core takeaway using Gemini (gemini-3.8-flash)
+  if (process.env.GEMINI_API_KEY && process.env.GEMINI_API_KEY !== 'MY_GEMINI_API_KEY') {
+    try {
+      const response = await ai.models.generateContent({
+        model: 'gemini-3.8-flash',
+        contents: `You are an insightful executive reflection coach. Read this user's personal reflection and identify the single most critical core takeaway or lesson learned.
+
+User Reflection:
+"${rawText.trim()}"
+
+Instructions:
+- Write exactly ONE concise, memorable summary sentence capturing the core takeaway.
+- Do NOT include filler, preambles, or quotation marks.
+- Output ONLY the single sentence takeaway.`,
+      });
+
+      const summaryText = response.text?.trim();
+      if (summaryText && summaryText.length > 5) {
+        return summaryText.replace(/^["']|["']$/g, '');
+      }
+    } catch (err) {
+      console.warn('[Gemini 1-sentence summary notice]:', err);
+    }
+  }
+
+  // 2. Fallback to Nebius Nemotron
+  try {
+    const nebiusRes = await callNebiusNemotron(
+      `Summarize this user reflection into exactly 1 punchy takeaway sentence capturing the core insight:\n\n"${rawText.trim()}"`,
+      'You are an executive reflection coach. Return strictly 1 single sentence core takeaway without extra commentary.'
+    );
+    if (nebiusRes && nebiusRes.content && nebiusRes.content.trim()) {
+      return nebiusRes.content.trim().replace(/^["']|["']$/g, '');
+    }
+  } catch (err) {
+    console.warn('[Nemotron 1-sentence summary notice]:', err);
+  }
+
+  // 3. Fallback to intelligent extraction
+  const sentences = rawText.split(/(?<=[.!?])\s+/).filter((s) => s.trim().length > 10);
+  const firstSentence = (sentences[0] || rawText).replace(/^#+\s*/, '').trim();
+  if (firstSentence.length > 130) {
+    return firstSentence.slice(0, 127).trim() + '...';
+  }
+  return firstSentence.endsWith('.') ? firstSentence : `${firstSentence}.`;
+}
+
+apiRouter.post('/reflections', async (req: Request, res: Response) => {
   const body = req.body as CreateReflectionRequest;
   if (!body.rawText || body.rawText.trim().length === 0) {
     return res.status(400).json({
@@ -492,7 +544,28 @@ apiRouter.post('/reflections', (req: Request, res: Response) => {
     updatedAt: now,
   });
 
-  res.status(201).json({ success: true, data: { reflection: newReflection } });
+  // Generate 1-sentence summary of reflection using Gemini to identify core takeaway
+  const summary = await generateReflectionTakeaway(newReflection.rawText);
+
+  res.status(201).json({
+    success: true,
+    data: {
+      reflection: newReflection,
+      summary,
+    },
+  });
+});
+
+apiRouter.post('/reflections/summarize', async (req: Request, res: Response) => {
+  const { text } = req.body;
+  if (!text || !text.trim()) {
+    return res.status(400).json({
+      success: false,
+      error: { code: 'INVALID_ARGUMENT', message: 'Text is required for summary.' },
+    });
+  }
+  const summary = await generateReflectionTakeaway(text);
+  res.json({ success: true, data: { summary } });
 });
 
 apiRouter.get('/reflections/:id', (req: Request, res: Response) => {

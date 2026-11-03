@@ -18,9 +18,11 @@ import { IntegrationsScreen } from './features/integrations/IntegrationsScreen.t
 import { SettingsScreen } from './features/settings/SettingsScreen.tsx';
 import { Modal } from './components/common/Modal.tsx';
 import { Button } from './components/common/Button.tsx';
+import { Toast } from './components/common/Toast.tsx';
 import { api } from './services/apiClient.ts';
 import { analyzeSentiment } from './utils/sentiment.ts';
-import { Mic, MicOff, Loader2, Sparkles, AlertCircle } from 'lucide-react';
+import { suggestTags } from './utils/tagSuggester.ts';
+import { Mic, MicOff, Loader2, Sparkles, AlertCircle, Check } from 'lucide-react';
 
 export default function App() {
   const [currentModule, setCurrentModule] = useState<NavModule>('home');
@@ -38,8 +40,22 @@ export default function App() {
   const [isQuickReflectOpen, setIsQuickReflectOpen] = useState(false);
   const [quickText, setQuickText] = useState('');
   const [quickCategory, setQuickCategory] = useState<'personal' | 'professional' | 'strategic'>('professional');
+  const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [isSavingQuick, setIsSavingQuick] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+
+  // Success Toast state for Gemini 1-sentence reflection core takeaway
+  const [toastData, setToastData] = useState<{
+    isOpen: boolean;
+    summary: string;
+    title?: string;
+    tags?: string[];
+  }>({
+    isOpen: false,
+    summary: '',
+    title: 'Reflection Captured',
+    tags: [],
+  });
 
   // Voice recording state in Quick Reflect Modal
   const [isRecordingVoice, setIsRecordingVoice] = useState(false);
@@ -77,8 +93,17 @@ export default function App() {
     }
   }, [isQuickReflectOpen]);
 
-  // Sentiment analysis of quickText
+  // Dynamic sentiment analysis of quickText
   const sentiment = analyzeSentiment(quickText);
+
+  // Automatically suggest relevant tags (e.g. #focus, #todo, #discovery) based on sentiment and content
+  const suggestedTags = suggestTags(quickText, sentiment.sentiment);
+
+  const toggleTag = (tag: string) => {
+    setSelectedTags((prev) =>
+      prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag]
+    );
+  };
 
   // Voice-to-Text handler
   const startVoiceRecording = async () => {
@@ -237,13 +262,36 @@ export default function App() {
     try {
       setIsSavingQuick(true);
       setSaveError(null);
-      await api.createReflection({
+
+      // Combine user-selected tags, sentiment tag, and quick capture marker
+      const finalTags = Array.from(
+        new Set([...selectedTags, sentiment.sentiment, 'quick_capture'])
+      );
+
+      const res = await api.createReflection({
         rawText: quickText.trim(),
         category: quickCategory,
-        tags: ['quick_capture', sentiment.sentiment],
+        tags: finalTags,
       });
+
+      // Close modal and reset fields
       setIsQuickReflectOpen(false);
+      const savedText = quickText;
       setQuickText('');
+      setSelectedTags([]);
+
+      // Trigger Gemini 1-sentence core takeaway summary toast!
+      const takeawaySummary =
+        res.summary ||
+        `Core takeaway: ${savedText.split(/[.!?]\s+/)[0]?.trim() || 'Reflection recorded successfully.'}`;
+
+      setToastData({
+        isOpen: true,
+        summary: takeawaySummary,
+        title: 'Reflection Saved',
+        tags: selectedTags,
+      });
+
       setCurrentModule('reflect');
     } catch (err: any) {
       setSaveError(`Save failed: ${err.message}`);
@@ -262,7 +310,18 @@ export default function App() {
           />
         );
       case 'reflect':
-        return <ReflectScreen />;
+        return (
+          <ReflectScreen
+            onShowToast={(summary, tags) =>
+              setToastData({
+                isOpen: true,
+                summary,
+                title: 'Reflection Saved',
+                tags,
+              })
+            }
+          />
+        );
       case 'chat':
         return <ChatScreen />;
       case 'vault':
@@ -311,6 +370,15 @@ export default function App() {
       onOpenQuickReflect={() => setIsQuickReflectOpen(true)}
     >
       {renderModuleView()}
+
+      {/* Global Success Toast Notification for Gemini 1-Sentence Takeaway */}
+      <Toast
+        isOpen={toastData.isOpen}
+        onClose={() => setToastData((prev) => ({ ...prev, isOpen: false }))}
+        summary={toastData.summary}
+        title={toastData.title}
+        tags={toastData.tags}
+      />
 
       {/* Quick Reflect Modal accessible globally */}
       <Modal
@@ -431,6 +499,46 @@ export default function App() {
                   : 'Tap the mic icon to record by voice.'}
               </span>
               <span>{quickText.trim().length} chars</span>
+            </div>
+          </div>
+
+          {/* Automatic Tag Suggestions (e.g., #focus, #todo, #discovery) */}
+          <div className="space-y-1.5 pt-1">
+            <div className="flex items-center justify-between">
+              <label className="text-[11px] font-medium text-stone-300 flex items-center gap-1.5">
+                <Sparkles className="w-3 h-3 text-amber-400" />
+                <span>Suggested Tags</span>
+                <span className="text-[10px] text-stone-500 font-normal">
+                  (tap to attach)
+                </span>
+              </label>
+              {selectedTags.length > 0 && (
+                <span className="text-[10px] font-mono text-amber-400 font-medium">
+                  {selectedTags.length} attached
+                </span>
+              )}
+            </div>
+
+            <div className="flex flex-wrap gap-1.5">
+              {suggestedTags.map((tag) => {
+                const isSelected = selectedTags.includes(tag);
+                return (
+                  <button
+                    key={tag}
+                    type="button"
+                    onClick={() => toggleTag(tag)}
+                    className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-mono transition-all cursor-pointer select-none border ${
+                      isSelected
+                        ? 'bg-amber-500/25 text-amber-300 border-amber-500/70 shadow-xs shadow-amber-950/30 font-semibold ring-1 ring-amber-500/40'
+                        : 'bg-stone-900/80 hover:bg-stone-800 text-stone-400 hover:text-stone-200 border-stone-800 hover:border-stone-700'
+                    }`}
+                    title={isSelected ? `Remove tag ${tag}` : `Attach tag ${tag}`}
+                  >
+                    <span>{tag}</span>
+                    {isSelected && <Check className="w-3 h-3 text-amber-400 stroke-[2.5]" />}
+                  </button>
+                );
+              })}
             </div>
           </div>
 

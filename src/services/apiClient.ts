@@ -68,9 +68,14 @@ export const api = {
     return request<{ items: Reflection[] }>(`/reflections${query}`);
   },
   createReflection: (data: CreateReflectionRequest) =>
-    request<{ reflection: Reflection }>('/reflections', {
+    request<{ reflection: Reflection; summary?: string }>('/reflections', {
       method: 'POST',
       body: JSON.stringify(data),
+    }),
+  summarizeReflection: (text: string) =>
+    request<{ summary: string }>('/reflections/summarize', {
+      method: 'POST',
+      body: JSON.stringify({ text }),
     }),
   getReflection: (id: string) => request<{ reflection: Reflection }>(`/reflections/${id}`),
   extractReflection: (id: string) =>
