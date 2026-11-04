@@ -19,10 +19,16 @@ import { SettingsScreen } from './features/settings/SettingsScreen.tsx';
 import { Modal } from './components/common/Modal.tsx';
 import { Button } from './components/common/Button.tsx';
 import { Toast } from './components/common/Toast.tsx';
+import { AudioPlayer } from './components/common/AudioPlayer.tsx';
 import { api } from './services/apiClient.ts';
 import { analyzeSentiment } from './utils/sentiment.ts';
 import { suggestTags } from './utils/tagSuggester.ts';
-import { Mic, MicOff, Loader2, Sparkles, AlertCircle, Check } from 'lucide-react';
+import {
+  LANGUAGE_OPTIONS,
+  DEFAULT_LANGUAGE_CODE,
+  getLanguageOption,
+} from './utils/languageOptions.ts';
+import { Mic, MicOff, Loader2, Sparkles, AlertCircle, Check, Globe } from 'lucide-react';
 
 export default function App() {
   const [currentModule, setCurrentModule] = useState<NavModule>('home');
@@ -57,6 +63,19 @@ export default function App() {
     tags: [],
   });
 
+  // Language & Accent selection for speech transcription (persisted in localStorage)
+  const [selectedLanguageCode, setSelectedLanguageCode] = useState<string>(() => {
+    try {
+      return localStorage.getItem('adora_stt_lang') || DEFAULT_LANGUAGE_CODE;
+    } catch {
+      return DEFAULT_LANGUAGE_CODE;
+    }
+  });
+
+  // Recorded audio playback state in Quick Reflect Modal
+  const [recordedAudioUrl, setRecordedAudioUrl] = useState<string | null>(null);
+  const [recordedAudioDuration, setRecordedAudioDuration] = useState<number>(0);
+
   // Voice recording state in Quick Reflect Modal
   const [isRecordingVoice, setIsRecordingVoice] = useState(false);
   const [isTranscribingVoice, setIsTranscribingVoice] = useState(false);
@@ -84,12 +103,22 @@ export default function App() {
     }
   }, [isDarkTheme]);
 
+  // Audio preview discard / re-record handler
+  const handleDiscardAudio = () => {
+    if (recordedAudioUrl) {
+      URL.revokeObjectURL(recordedAudioUrl);
+      setRecordedAudioUrl(null);
+      setRecordedAudioDuration(0);
+    }
+  };
+
   // Cleanup on modal close or unmount
   useEffect(() => {
     if (!isQuickReflectOpen) {
       stopVoiceRecording();
       setVoiceError(null);
       setSaveError(null);
+      handleDiscardAudio();
     }
   }, [isQuickReflectOpen]);
 
@@ -105,17 +134,30 @@ export default function App() {
     );
   };
 
-  // Voice-to-Text handler
+  const handleLanguageChange = (code: string) => {
+    setSelectedLanguageCode(code);
+    try {
+      localStorage.setItem('adora_stt_lang', code);
+    } catch {
+      // ignore
+    }
+    if (recognitionRef.current) {
+      recognitionRef.current.lang = code;
+    }
+  };
+
+  // Voice-to-Text handler with Accent & Non-native English optimization
   const startVoiceRecording = async () => {
     setVoiceError(null);
     setRecordingSeconds(0);
     audioChunksRef.current = [];
+    handleDiscardAudio();
 
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       streamRef.current = stream;
 
-      // 1. Web Speech API live recognition if available
+      // 1. Web Speech API live recognition configured with chosen accent/language
       const SpeechRecognition =
         (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
       if (SpeechRecognition) {
@@ -123,7 +165,7 @@ export default function App() {
           const recognition = new SpeechRecognition();
           recognition.continuous = true;
           recognition.interimResults = true;
-          recognition.lang = 'en-US';
+          recognition.lang = selectedLanguageCode;
 
           recognition.onresult = (event: any) => {
             let transcriptText = '';
@@ -146,7 +188,7 @@ export default function App() {
         }
       }
 
-      // 2. MediaRecorder fallback / backup recording
+      // 2. MediaRecorder fallback / backup recording for audio playback & Gemini transcription
       const mimeType = MediaRecorder.isTypeSupported('audio/webm')
         ? 'audio/webm'
         : MediaRecorder.isTypeSupported('audio/mp4')
@@ -170,7 +212,18 @@ export default function App() {
           type: recorder.mimeType || 'audio/webm',
         });
 
-        // If SpeechRecognition didn't populate text, use backend gemini-3.5-transcribe
+        // Store playable audio clip for user review before saving
+        if (audioBlob.size > 0) {
+          try {
+            const url = URL.createObjectURL(audioBlob);
+            setRecordedAudioUrl(url);
+            setRecordedAudioDuration(recordingSeconds || 1);
+          } catch (e) {
+            console.warn('Failed to create preview audio object URL:', e);
+          }
+        }
+
+        // If SpeechRecognition didn't populate text, or for high-accuracy Gemini transcription
         if (audioBlob.size > 0 && !quickText.trim()) {
           setIsTranscribingVoice(true);
           try {
@@ -180,7 +233,12 @@ export default function App() {
               const resultStr = reader.result as string;
               const base64Data = resultStr.includes(',') ? resultStr.split(',')[1] : resultStr;
               if (base64Data) {
-                const res = await api.transcribeAudio(base64Data, audioBlob.type);
+                const langOpt = getLanguageOption(selectedLanguageCode);
+                const res = await api.transcribeAudio(base64Data, audioBlob.type, {
+                  language: langOpt.language,
+                  accent: langOpt.accent,
+                  languageCode: langOpt.code,
+                });
                 if (res.transcript) {
                   setQuickText((prev) => (prev ? `${prev} ${res.transcript}` : res.transcript));
                 }
@@ -272,10 +330,12 @@ export default function App() {
         rawText: quickText.trim(),
         category: quickCategory,
         tags: finalTags,
+        audioDurationSeconds: recordedAudioDuration > 0 ? recordedAudioDuration : undefined,
       });
 
       // Close modal and reset fields
       setIsQuickReflectOpen(false);
+      handleDiscardAudio();
       const savedText = quickText;
       setQuickText('');
       setSelectedTags([]);
@@ -402,23 +462,46 @@ export default function App() {
             </div>
           )}
 
-          <div>
-            <label className="block text-xs font-medium text-stone-300 mb-1.5">Category</label>
-            <div className="flex gap-2">
-              {(['professional', 'personal', 'strategic'] as const).map((cat) => (
-                <button
-                  key={cat}
-                  type="button"
-                  onClick={() => setQuickCategory(cat)}
-                  className={`px-3 py-1 rounded-lg text-xs font-medium capitalize border transition-all cursor-pointer ${
-                    quickCategory === cat
-                      ? 'bg-amber-500/20 text-amber-300 border-amber-500/50'
-                      : 'bg-stone-800 text-stone-400 border-stone-700 hover:bg-stone-700'
-                  }`}
-                >
-                  {cat}
-                </button>
-              ))}
+          {/* Category & Language/Accent Selector Row */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div>
+              <label className="block text-xs font-medium text-stone-300 mb-1.5">Category</label>
+              <div className="flex gap-2">
+                {(['professional', 'personal', 'strategic'] as const).map((cat) => (
+                  <button
+                    key={cat}
+                    type="button"
+                    onClick={() => setQuickCategory(cat)}
+                    className={`px-3 py-1 rounded-lg text-xs font-medium capitalize border transition-all cursor-pointer ${
+                      quickCategory === cat
+                        ? 'bg-amber-500/20 text-amber-300 border-amber-500/50'
+                        : 'bg-stone-800 text-stone-400 border-stone-700 hover:bg-stone-700'
+                    }`}
+                  >
+                    {cat}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Language & Accent Selection Dropdown for Non-Native & Regional Speakers */}
+            <div className="min-w-0 sm:max-w-[240px]">
+              <label className="flex items-center gap-1.5 text-xs font-medium text-stone-300 mb-1.5">
+                <Globe className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                <span className="truncate">Speech Accent / Language</span>
+              </label>
+              <select
+                value={selectedLanguageCode}
+                onChange={(e) => handleLanguageChange(e.target.value)}
+                className="w-full bg-stone-900 border border-stone-800 hover:border-stone-700 text-stone-200 text-xs rounded-lg px-2.5 py-1.5 focus:outline-none focus:border-amber-500/50 cursor-pointer transition-colors truncate"
+                title="Select your native English accent or language to optimize speech transcription accuracy"
+              >
+                {LANGUAGE_OPTIONS.map((opt) => (
+                  <option key={opt.code} value={opt.code} className="bg-stone-900 text-stone-200">
+                    {opt.regionFlag} {opt.label}
+                  </option>
+                ))}
+              </select>
             </div>
           </div>
 
@@ -491,16 +574,28 @@ export default function App() {
 
             {/* Helper status text under reflection input */}
             <div className="mt-1 flex items-center justify-between text-[11px] text-stone-500">
-              <span>
+              <span className="truncate">
                 {isRecordingVoice
-                  ? 'Microphone active — speak naturally to transcribe.'
+                  ? `Recording audio (${getLanguageOption(selectedLanguageCode).label})...`
                   : isTranscribingVoice
                   ? 'Transcribing audio with Gemini 3.5 Transcribe...'
                   : 'Tap the mic icon to record by voice.'}
               </span>
-              <span>{quickText.trim().length} chars</span>
+              <span className="shrink-0 ml-2">{quickText.trim().length} chars</span>
             </div>
           </div>
+
+          {/* Audio Playback Feature: Listen to recorded voice clip before saving */}
+          {recordedAudioUrl && (
+            <div className="animate-in fade-in slide-in-from-top-1 duration-200">
+              <AudioPlayer
+                audioUrl={recordedAudioUrl}
+                durationSeconds={recordedAudioDuration || recordingSeconds}
+                onDiscard={handleDiscardAudio}
+                title="Recorded Voice Clip Preview"
+              />
+            </div>
+          )}
 
           {/* Automatic Tag Suggestions (e.g., #focus, #todo, #discovery) */}
           <div className="space-y-1.5 pt-1">

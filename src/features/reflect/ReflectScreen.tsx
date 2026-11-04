@@ -76,7 +76,7 @@ export const ReflectScreen: React.FC<{
   const startVoiceRecording = async () => {
     try {
       if (!navigator.mediaDevices?.getUserMedia) {
-        alert('Microphone access is not supported in this browser.');
+        setStatusMessage('Microphone access is not supported in this browser.');
         return;
       }
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });

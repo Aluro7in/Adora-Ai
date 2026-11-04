@@ -68,14 +68,14 @@
 
 ### FEAT-CAP-002 & FEAT-CAP-003: Voice Capture & Audio Transcription
 - **Product Area**: Reflection Capture & Voice
-- **Description**: Microphone recording with live audio waveform, duration counter, audio playback, server-side transcription using `gemini-3.5-transcribe`, and inline transcript editor before submission.
-- **Dependencies**: FEAT-SEC-001, `gemini-3.5-transcribe`
+- **Description**: Microphone recording with duration counter, audio playback scrubber, optional language and accent selection dropdown for non-native English speakers, server-side transcription using `gemini-3.5-transcribe` with Web Speech API live fallback, and inline transcript editor before submission.
+- **Dependencies**: FEAT-SEC-001, `gemini-3.5-transcribe`, `src/components/common/AudioPlayer.tsx`, `src/utils/languageOptions.ts`
 - **Priority**: P0
-- **Status**: `NOT_STARTED`
-- **Implementation References**: `src/components/reflect/VoiceReflector.tsx`, `src/services/voiceService.ts`
+- **Status**: `TESTED`
+- **Implementation References**: `src/App.tsx`, `src/components/common/AudioPlayer.tsx`, `src/utils/languageOptions.ts`, `server.ts`
 - **Test References**: `TC-GEM-001`
-- **Acceptance Criteria**: Returns verbatim transcript within 3 seconds of recording stop; allows user to edit before saving.
-- **Known Limitations**: Requires browser microphone permissions (gracefully disabled if denied).
+- **Acceptance Criteria**: Returns verbatim transcript within 3 seconds of recording stop; supports non-native accents (Indian, British, Australian, Singaporean, Filipino, Nigerian, etc.); provides audio playback preview prior to saving.
+- **Known Limitations**: Requires browser microphone permissions (gracefully handled with inline error message).
 
 ### FEAT-CAP-005: Structured Nemotron Entity Extraction
 - **Product Area**: Reflection Intelligence

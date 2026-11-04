@@ -5,7 +5,6 @@ Adora AI — Custom Exception Types and Error Envelopes
 from typing import Any, Dict, Optional
 from fastapi import HTTPException, status
 
-
 class AdoraException(HTTPException):
     def __init__(
         self,
@@ -23,7 +22,6 @@ class AdoraException(HTTPException):
             },
         )
 
-
 class UnauthenticatedException(AdoraException):
     def __init__(self, message: str = "Authentication required"):
         super().__init__(
@@ -31,7 +29,6 @@ class UnauthenticatedException(AdoraException):
             code="UNAUTHENTICATED",
             message=message,
         )
-
 
 class PermissionDeniedException(AdoraException):
     def __init__(self, message: str = "Permission denied"):
@@ -41,7 +38,6 @@ class PermissionDeniedException(AdoraException):
             message=message,
         )
 
-
 class ApprovalRequiredException(AdoraException):
     def __init__(self, message: str = "This consequential action requires explicit human approval before execution"):
         super().__init__(
@@ -50,7 +46,6 @@ class ApprovalRequiredException(AdoraException):
             message=message,
         )
 
-
 class ResourceNotFoundException(AdoraException):
     def __init__(self, message: str = "Resource not found"):
         super().__init__(
@@ -58,7 +53,6 @@ class ResourceNotFoundException(AdoraException):
             code="RESOURCE_NOT_FOUND",
             message=message,
         )
-
 
 class VerificationException(AdoraException):
     def __init__(self, message: str = "Independent verification failed to confirm expected state"):

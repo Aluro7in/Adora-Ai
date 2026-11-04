@@ -1288,7 +1288,7 @@ apiRouter.get('/integrations', (_req: Request, res: Response) => {
 
 // Audio Transcription with gemini-3.5-transcribe
 apiRouter.post('/audio/transcribe', async (req: Request, res: Response) => {
-  const { audioBase64, mimeType = 'audio/webm' } = req.body;
+  const { audioBase64, mimeType = 'audio/webm', language, accent, languageCode } = req.body;
   if (!audioBase64) {
     return res.status(400).json({
       success: false,
@@ -1309,12 +1309,25 @@ apiRouter.post('/audio/transcribe', async (req: Request, res: Response) => {
       },
     };
 
+    // Construct accent and language-aware prompt to optimize accuracy for non-native English and global speakers
+    let transcriptionPrompt =
+      'Transcribe this spoken personal reflection verbatim. Output only the plain text transcription without preambles or notes.';
+    if (language || accent || languageCode) {
+      const details = [];
+      if (language) details.push(`Language: ${language}`);
+      if (accent) details.push(`Accent / Dialect: ${accent}`);
+      if (languageCode) details.push(`Language Tag: ${languageCode}`);
+      transcriptionPrompt = `Transcribe this spoken personal reflection verbatim. Speaker profile: ${details.join(
+        ', '
+      )}. Pay special attention to non-native pronunciations, colloquialisms, and regional idioms associated with this accent to ensure maximum precision and verbatim fidelity. Output only the plain text transcription without any preamble, explanation, or notes.`;
+    }
+
     const response = await ai.models.generateContent({
       model: 'gemini-3.5-transcribe',
       contents: {
         parts: [
           audioPart,
-          { text: 'Transcribe this spoken personal reflection verbatim. Output only the plain text transcription without preambles or notes.' },
+          { text: transcriptionPrompt },
         ],
       },
     });

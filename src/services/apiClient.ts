@@ -150,10 +150,20 @@ export const api = {
   getIntegrations: () => request<{ items: Integration[] }>('/integrations'),
 
   // Audio / Multimodal
-  transcribeAudio: (audioBase64: string, mimeType: string = 'audio/webm') =>
+  transcribeAudio: (
+    audioBase64: string,
+    mimeType: string = 'audio/webm',
+    options?: { language?: string; accent?: string; languageCode?: string }
+  ) =>
     request<{ transcript: string }>('/audio/transcribe', {
       method: 'POST',
-      body: JSON.stringify({ audioBase64, mimeType }),
+      body: JSON.stringify({
+        audioBase64,
+        mimeType,
+        language: options?.language,
+        accent: options?.accent,
+        languageCode: options?.languageCode,
+      }),
     }),
   generateTts: (text: string) =>
     request<{ audioData: string; mimeType: string }>('/audio/tts', {
