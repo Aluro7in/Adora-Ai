@@ -20,6 +20,7 @@ import { Modal } from './components/common/Modal.tsx';
 import { Button } from './components/common/Button.tsx';
 import { Toast } from './components/common/Toast.tsx';
 import { AudioPlayer } from './components/common/AudioPlayer.tsx';
+import { AudioWaveform } from './components/common/AudioWaveform.tsx';
 import { api } from './services/apiClient.ts';
 import { analyzeSentiment } from './utils/sentiment.ts';
 import { suggestTags } from './utils/tagSuggester.ts';
@@ -78,6 +79,7 @@ export default function App() {
 
   // Voice recording state in Quick Reflect Modal
   const [isRecordingVoice, setIsRecordingVoice] = useState(false);
+  const [activeMediaStream, setActiveMediaStream] = useState<MediaStream | null>(null);
   const [isTranscribingVoice, setIsTranscribingVoice] = useState(false);
   const [recordingSeconds, setRecordingSeconds] = useState(0);
   const [voiceError, setVoiceError] = useState<string | null>(null);
@@ -156,6 +158,7 @@ export default function App() {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       streamRef.current = stream;
+      setActiveMediaStream(stream);
 
       // 1. Web Speech API live recognition configured with chosen accent/language
       const SpeechRecognition =
@@ -298,6 +301,7 @@ export default function App() {
       streamRef.current = null;
     }
 
+    setActiveMediaStream(null);
     setIsRecordingVoice(false);
   };
 
@@ -520,6 +524,19 @@ export default function App() {
                 </div>
               )}
             </div>
+
+            {/* Dynamic Visual Audio Waveform Animation during Voice Recording */}
+            {isRecordingVoice && (
+              <div className="mb-2">
+                <AudioWaveform
+                  isRecording={isRecordingVoice}
+                  stream={activeMediaStream}
+                  recordingSeconds={recordingSeconds}
+                  languageLabel={getLanguageOption(selectedLanguageCode).label}
+                  onStop={stopVoiceRecording}
+                />
+              </div>
+            )}
 
             <div className="relative">
               <textarea
