@@ -155,7 +155,13 @@ export const api = {
     mimeType: string = 'audio/webm',
     options?: { language?: string; accent?: string; languageCode?: string }
   ) =>
-    request<{ transcript: string }>('/audio/transcribe', {
+    request<{
+      transcript: string;
+      detectedLanguageCode?: string;
+      detectedLanguage?: string;
+      detectedAccent?: string;
+      confidence?: number;
+    }>('/audio/transcribe', {
       method: 'POST',
       body: JSON.stringify({
         audioBase64,

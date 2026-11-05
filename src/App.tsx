@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Shell, NavModule } from './components/layout/Shell.tsx';
 import { HomeScreen } from './features/home/HomeScreen.tsx';
 import { ReflectScreen } from './features/reflect/ReflectScreen.tsx';
@@ -23,13 +23,17 @@ import { AudioPlayer } from './components/common/AudioPlayer.tsx';
 import { AudioWaveform } from './components/common/AudioWaveform.tsx';
 import { api } from './services/apiClient.ts';
 import { analyzeSentiment } from './utils/sentiment.ts';
-import { suggestTags } from './utils/tagSuggester.ts';
+import { suggestTags, ALL_AVAILABLE_TAGS } from './utils/tagSuggester.ts';
 import {
   LANGUAGE_OPTIONS,
   DEFAULT_LANGUAGE_CODE,
   getLanguageOption,
 } from './utils/languageOptions.ts';
-import { Mic, MicOff, Loader2, Sparkles, AlertCircle, Check, Globe } from 'lucide-react';
+import {
+  detectLanguageFromText,
+  LanguageConsistencyTracker,
+} from './utils/languageDetector.ts';
+import { Mic, MicOff, Loader2, Sparkles, AlertCircle, Check, Globe, Search, Plus, X } from 'lucide-react';
 
 export default function App() {
   const [currentModule, setCurrentModule] = useState<NavModule>('home');
@@ -48,6 +52,7 @@ export default function App() {
   const [quickText, setQuickText] = useState('');
   const [quickCategory, setQuickCategory] = useState<'personal' | 'professional' | 'strategic'>('professional');
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
+  const [tagSearchQuery, setTagSearchQuery] = useState<string>('');
   const [isSavingQuick, setIsSavingQuick] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
 
@@ -72,6 +77,14 @@ export default function App() {
       return DEFAULT_LANGUAGE_CODE;
     }
   });
+
+  // Dynamic automatic language & accent detection state
+  const [autoDetectedProfile, setAutoDetectedProfile] = useState<{
+    code: string;
+    label: string;
+    reason?: string;
+  } | null>(null);
+  const consistencyTrackerRef = useRef(new LanguageConsistencyTracker());
 
   // Recorded audio playback state in Quick Reflect Modal
   const [recordedAudioUrl, setRecordedAudioUrl] = useState<string | null>(null);
@@ -121,6 +134,9 @@ export default function App() {
       setVoiceError(null);
       setSaveError(null);
       handleDiscardAudio();
+      setTagSearchQuery('');
+      setAutoDetectedProfile(null);
+      consistencyTrackerRef.current.reset();
     }
   }, [isQuickReflectOpen]);
 
@@ -129,6 +145,23 @@ export default function App() {
 
   // Automatically suggest relevant tags (e.g. #focus, #todo, #discovery) based on sentiment and content
   const suggestedTags = suggestTags(quickText, sentiment.sentiment);
+
+  // Filtered tags for search input in Quick Reflection modal
+  const displayedTags = useMemo(() => {
+    const q = tagSearchQuery.trim().toLowerCase().replace(/^#+/, '');
+    const pool = Array.from(new Set([...selectedTags, ...suggestedTags, ...ALL_AVAILABLE_TAGS]));
+    if (!q) {
+      return Array.from(new Set([...selectedTags, ...suggestedTags]));
+    }
+    return pool.filter((t) => t.toLowerCase().replace(/^#+/, '').includes(q));
+  }, [selectedTags, suggestedTags, tagSearchQuery]);
+
+  const cleanQueryTag = `#${tagSearchQuery.trim().toLowerCase().replace(/^[#\s]+/, '')}`;
+  const canAddCustomTag =
+    tagSearchQuery.trim().length > 0 &&
+    cleanQueryTag.length > 1 &&
+    !displayedTags.some((t) => t.toLowerCase() === cleanQueryTag.toLowerCase()) &&
+    !selectedTags.some((t) => t.toLowerCase() === cleanQueryTag.toLowerCase());
 
   const toggleTag = (tag: string) => {
     setSelectedTags((prev) =>
@@ -154,6 +187,7 @@ export default function App() {
     setRecordingSeconds(0);
     audioChunksRef.current = [];
     handleDiscardAudio();
+    consistencyTrackerRef.current.reset();
 
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -177,6 +211,27 @@ export default function App() {
             }
             if (transcriptText.trim()) {
               setQuickText(transcriptText.trim());
+
+              // Dynamic language & accent detection from incoming speech
+              const detected = detectLanguageFromText(transcriptText);
+              if (detected && detected.code !== selectedLanguageCode) {
+                const confirmedCode = consistencyTrackerRef.current.recordObservation(
+                  detected.code,
+                  detected.confidence
+                );
+                if (confirmedCode && confirmedCode !== selectedLanguageCode) {
+                  const newOpt = getLanguageOption(confirmedCode);
+                  setSelectedLanguageCode(confirmedCode);
+                  try {
+                    localStorage.setItem('adora_stt_lang', confirmedCode);
+                  } catch {}
+                  setAutoDetectedProfile({
+                    code: confirmedCode,
+                    label: newOpt.label,
+                    reason: detected.reason,
+                  });
+                }
+              }
             }
           };
 
@@ -245,6 +300,27 @@ export default function App() {
                 if (res.transcript) {
                   setQuickText((prev) => (prev ? `${prev} ${res.transcript}` : res.transcript));
                 }
+
+                // Check Gemini's auto-detected language & accent from voice analysis
+                if (res.detectedLanguageCode && res.detectedLanguageCode !== selectedLanguageCode) {
+                  const confirmedCode = consistencyTrackerRef.current.recordObservation(
+                    res.detectedLanguageCode,
+                    res.confidence || 0.85
+                  );
+                  const targetCode = confirmedCode || res.detectedLanguageCode;
+                  if (targetCode !== selectedLanguageCode) {
+                    const newOpt = getLanguageOption(targetCode);
+                    setSelectedLanguageCode(targetCode);
+                    try {
+                      localStorage.setItem('adora_stt_lang', targetCode);
+                    } catch {}
+                    setAutoDetectedProfile({
+                      code: targetCode,
+                      label: newOpt.label,
+                      reason: res.detectedAccent || res.detectedLanguage || 'Voice speech profile',
+                    });
+                  }
+                }
               }
               setIsTranscribingVoice(false);
             };
@@ -252,6 +328,27 @@ export default function App() {
             console.error('Audio transcription error:', err);
             setVoiceError(`Transcription error: ${err.message}`);
             setIsTranscribingVoice(false);
+          }
+        } else if (audioBlob.size > 0 && quickText.trim()) {
+          // If speech was already transcribed by speech recognition, verify language consistency
+          const detected = detectLanguageFromText(quickText);
+          if (detected && detected.code !== selectedLanguageCode) {
+            const confirmedCode = consistencyTrackerRef.current.recordObservation(
+              detected.code,
+              detected.confidence
+            );
+            if (confirmedCode && confirmedCode !== selectedLanguageCode) {
+              const newOpt = getLanguageOption(confirmedCode);
+              setSelectedLanguageCode(confirmedCode);
+              try {
+                localStorage.setItem('adora_stt_lang', confirmedCode);
+              } catch {}
+              setAutoDetectedProfile({
+                code: confirmedCode,
+                label: newOpt.label,
+                reason: detected.reason,
+              });
+            }
           }
         }
       };
@@ -340,6 +437,7 @@ export default function App() {
       // Close modal and reset fields
       setIsQuickReflectOpen(false);
       handleDiscardAudio();
+      setTagSearchQuery('');
       const savedText = quickText;
       setQuickText('');
       setSelectedTags([]);
@@ -489,15 +587,33 @@ export default function App() {
             </div>
 
             {/* Language & Accent Selection Dropdown for Non-Native & Regional Speakers */}
-            <div className="min-w-0 sm:max-w-[240px]">
-              <label className="flex items-center gap-1.5 text-xs font-medium text-stone-300 mb-1.5">
-                <Globe className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-                <span className="truncate">Speech Accent / Language</span>
-              </label>
+            <div className="min-w-0 sm:max-w-[260px]">
+              <div className="flex items-center justify-between mb-1.5 gap-2">
+                <label className="flex items-center gap-1.5 text-xs font-medium text-stone-300">
+                  <Globe className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                  <span className="truncate">Speech Accent / Language</span>
+                </label>
+                {autoDetectedProfile && (
+                  <span
+                    className="inline-flex items-center gap-1 text-[10px] font-mono text-amber-300 bg-amber-500/20 border border-amber-500/40 px-1.5 py-0.5 rounded-full animate-in fade-in"
+                    title={`Language dynamically detected from speech: ${autoDetectedProfile.reason || autoDetectedProfile.label}`}
+                  >
+                    <Sparkles className="w-2.5 h-2.5 text-amber-400" />
+                    <span>Auto-detected</span>
+                  </span>
+                )}
+              </div>
               <select
                 value={selectedLanguageCode}
-                onChange={(e) => handleLanguageChange(e.target.value)}
-                className="w-full bg-stone-900 border border-stone-800 hover:border-stone-700 text-stone-200 text-xs rounded-lg px-2.5 py-1.5 focus:outline-none focus:border-amber-500/50 cursor-pointer transition-colors truncate"
+                onChange={(e) => {
+                  handleLanguageChange(e.target.value);
+                  setAutoDetectedProfile(null);
+                }}
+                className={`w-full bg-stone-900 border text-stone-200 text-xs rounded-lg px-2.5 py-1.5 focus:outline-none cursor-pointer transition-all truncate ${
+                  autoDetectedProfile
+                    ? 'border-amber-500/80 ring-1 ring-amber-500/40 shadow-sm shadow-amber-950/40'
+                    : 'border-stone-800 hover:border-stone-700 focus:border-amber-500/50'
+                }`}
                 title="Select your native English accent or language to optimize speech transcription accuracy"
               >
                 {LANGUAGE_OPTIONS.map((opt) => (
@@ -506,6 +622,20 @@ export default function App() {
                   </option>
                 ))}
               </select>
+              {autoDetectedProfile && (
+                <div className="flex items-center justify-between text-[10px] text-amber-300/90 mt-1 animate-in fade-in">
+                  <span className="truncate">
+                    ✨ Switched to <strong>{autoDetectedProfile.label}</strong>
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setAutoDetectedProfile(null)}
+                    className="text-stone-400 hover:text-stone-200 ml-1.5 text-[9px] underline cursor-pointer shrink-0"
+                  >
+                    dismiss
+                  </button>
+                </div>
+              )}
             </div>
           </div>
 
@@ -614,14 +744,14 @@ export default function App() {
             </div>
           )}
 
-          {/* Automatic Tag Suggestions (e.g., #focus, #todo, #discovery) */}
-          <div className="space-y-1.5 pt-1">
+          {/* Automatic Tag Suggestions & Search Input */}
+          <div className="space-y-2 pt-1">
             <div className="flex items-center justify-between">
               <label className="text-[11px] font-medium text-stone-300 flex items-center gap-1.5">
                 <Sparkles className="w-3 h-3 text-amber-400" />
-                <span>Suggested Tags</span>
+                <span>Tags</span>
                 <span className="text-[10px] text-stone-500 font-normal">
-                  (tap to attach)
+                  (search or tap to attach)
                 </span>
               </label>
               {selectedTags.length > 0 && (
@@ -631,8 +761,58 @@ export default function App() {
               )}
             </div>
 
-            <div className="flex flex-wrap gap-1.5">
-              {suggestedTags.map((tag) => {
+            {/* Search Input above the tag list */}
+            <div className="relative">
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-stone-400 pointer-events-none" />
+              <input
+                type="text"
+                value={tagSearchQuery}
+                onChange={(e) => setTagSearchQuery(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    if (canAddCustomTag) {
+                      toggleTag(cleanQueryTag);
+                      setTagSearchQuery('');
+                    } else if (displayedTags.length > 0) {
+                      toggleTag(displayedTags[0]);
+                      setTagSearchQuery('');
+                    }
+                  }
+                }}
+                placeholder="Search tags or type custom #tag..."
+                className="w-full bg-stone-950/90 border border-stone-800 focus:border-amber-500/50 rounded-lg pl-8 pr-8 py-1.5 text-xs text-stone-200 placeholder-stone-500 focus:outline-none transition-colors"
+              />
+              {tagSearchQuery && (
+                <button
+                  type="button"
+                  onClick={() => setTagSearchQuery('')}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-stone-400 hover:text-stone-200 p-0.5 cursor-pointer"
+                  title="Clear tag search"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              )}
+            </div>
+
+            {/* Tag Pills List */}
+            <div className="flex flex-wrap gap-1.5 max-h-28 overflow-y-auto pr-0.5">
+              {canAddCustomTag && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    toggleTag(cleanQueryTag);
+                    setTagSearchQuery('');
+                  }}
+                  className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-mono bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 border border-dashed border-amber-500/60 cursor-pointer transition-all"
+                  title={`Add custom tag ${cleanQueryTag}`}
+                >
+                  <Plus className="w-3 h-3 text-amber-400" />
+                  <span>Add "{cleanQueryTag}"</span>
+                </button>
+              )}
+
+              {displayedTags.map((tag) => {
                 const isSelected = selectedTags.includes(tag);
                 return (
                   <button
@@ -651,6 +831,12 @@ export default function App() {
                   </button>
                 );
               })}
+
+              {displayedTags.length === 0 && !canAddCustomTag && (
+                <p className="text-xs text-stone-500 py-1 italic">
+                  No matching tags found for &ldquo;{tagSearchQuery}&rdquo;. Press Enter to add as a custom tag.
+                </p>
+              )}
             </div>
           </div>
 

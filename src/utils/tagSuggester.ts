@@ -66,6 +66,24 @@ const TAG_RULES: TagRule[] = [
 
 const DEFAULT_TAGS = ['#focus', '#todo', '#discovery', '#decision'];
 
+export const ALL_AVAILABLE_TAGS: string[] = [
+  '#focus',
+  '#todo',
+  '#discovery',
+  '#decision',
+  '#strategy',
+  '#obstacle',
+  '#wellbeing',
+  '#gratitude',
+  '#team',
+  '#breakthrough',
+  '#deepwork',
+  '#learning',
+  '#milestone',
+  '#action',
+  '#habit',
+];
+
 export function suggestTags(
   text: string,
   sentiment: SentimentAnalysisResult['sentiment'] = 'neutral'

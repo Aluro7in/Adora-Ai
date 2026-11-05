@@ -1309,18 +1309,22 @@ apiRouter.post('/audio/transcribe', async (req: Request, res: Response) => {
       },
     };
 
-    // Construct accent and language-aware prompt to optimize accuracy for non-native English and global speakers
-    let transcriptionPrompt =
-      'Transcribe this spoken personal reflection verbatim. Output only the plain text transcription without preambles or notes.';
-    if (language || accent || languageCode) {
-      const details = [];
-      if (language) details.push(`Language: ${language}`);
-      if (accent) details.push(`Accent / Dialect: ${accent}`);
-      if (languageCode) details.push(`Language Tag: ${languageCode}`);
-      transcriptionPrompt = `Transcribe this spoken personal reflection verbatim. Speaker profile: ${details.join(
-        ', '
-      )}. Pay special attention to non-native pronunciations, colloquialisms, and regional idioms associated with this accent to ensure maximum precision and verbatim fidelity. Output only the plain text transcription without any preamble, explanation, or notes.`;
-    }
+    // Instruct Gemini to transcribe verbatim and identify spoken language/accent profile
+    const transcriptionPrompt = `
+Transcribe this spoken personal reflection verbatim.
+Additionally, detect the primary spoken language and regional accent profile of the speaker from their voice, pronunciation, and vocabulary patterns.
+Select the closest matching language code from this catalog:
+en-US (English - US / Standard), en-IN (English - Indian Accent), en-GB (English - UK / British), en-AU (English - Australian), en-SG (English - Singapore & SE Asia), en-PH (English - Filipino Accent), en-NG (English - Nigerian / West African), en-ZA (English - South African), en-CA (English - Canadian), en-IE (English - Irish Accent), en-NZ (English - New Zealand), es-ES (Spanish - Spain), es-MX (Spanish - Latin America / Mexico), hi-IN (Hindi - India / Hinglish), fr-FR (French - France), fr-CA (French - Canada), de-DE (German - Germany), ja-JP (Japanese), zh-CN (Chinese - Mandarin), pt-BR (Portuguese - Brazil), ar-SA (Arabic), it-IT (Italian), ko-KR (Korean), nl-NL (Dutch).
+${language || accent ? `(Current user preference: ${language || ''} ${accent ? `[${accent}]` : ''})` : ''}
+
+Output strictly a JSON object:
+{
+  "transcript": "verbatim text of what was spoken without commentary",
+  "detectedLanguageCode": "one of the codes above (e.g. en-IN, es-MX, hi-IN, en-US)",
+  "detectedLanguage": "Language name (e.g. English, Spanish, Hindi)",
+  "detectedAccent": "Accent or dialect name (e.g. Indian Accent, Castilian, Mexican)",
+  "confidence": 0.95
+}`;
 
     const response = await ai.models.generateContent({
       model: 'gemini-3.5-transcribe',
@@ -1332,11 +1336,46 @@ apiRouter.post('/audio/transcribe', async (req: Request, res: Response) => {
       },
     });
 
-    const transcript = response.text?.trim() || '';
+    const rawResult = response.text?.trim() || '';
+    let parsedTranscript = rawResult;
+    let detectedLanguageCode: string | undefined = undefined;
+    let detectedLanguage: string | undefined = undefined;
+    let detectedAccent: string | undefined = undefined;
+    let confidence: number | undefined = undefined;
+
+    // Check if JSON format was returned
+    const jsonMatch = rawResult.match(/\{[\s\S]*\}/);
+    if (jsonMatch) {
+      try {
+        const parsed = JSON.parse(jsonMatch[0]);
+        if (parsed.transcript && typeof parsed.transcript === 'string') {
+          parsedTranscript = parsed.transcript.trim();
+        }
+        if (parsed.detectedLanguageCode && typeof parsed.detectedLanguageCode === 'string') {
+          detectedLanguageCode = parsed.detectedLanguageCode.trim();
+        }
+        if (parsed.detectedLanguage && typeof parsed.detectedLanguage === 'string') {
+          detectedLanguage = parsed.detectedLanguage.trim();
+        }
+        if (parsed.detectedAccent && typeof parsed.detectedAccent === 'string') {
+          detectedAccent = parsed.detectedAccent.trim();
+        }
+        if (typeof parsed.confidence === 'number') {
+          confidence = parsed.confidence;
+        }
+      } catch {
+        // Fallback to raw string
+      }
+    }
+
     res.json({
       success: true,
       data: {
-        transcript: transcript || 'Could not detect clear speech in recording.',
+        transcript: parsedTranscript || 'Could not detect clear speech in recording.',
+        detectedLanguageCode,
+        detectedLanguage,
+        detectedAccent,
+        confidence,
       },
     });
   } catch (err: any) {
